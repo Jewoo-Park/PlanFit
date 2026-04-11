@@ -107,6 +107,14 @@ class HFTextGenerator:
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
+        path_or_name = str(self.model_cfg["path_or_name"]).strip()
+        if not path_or_name or path_or_name.startswith("/path/to/"):
+            raise ValueError(
+                "Invalid model path_or_name in configs/models.yaml. "
+                "Set it to a real Hugging Face repo id such as "
+                "'Qwen/Qwen3-8B' or 'Qwen/Qwen3-32B-FP8', or to a valid local path."
+            )
+
         dtype_str = str(self.model_cfg.get("torch_dtype", "auto"))
         dtype = {
             "float16": torch.float16,
@@ -116,11 +124,11 @@ class HFTextGenerator:
         }.get(dtype_str, "auto")
 
         self._tokenizer = AutoTokenizer.from_pretrained(
-            self.model_cfg["path_or_name"],
+            path_or_name,
             trust_remote_code=bool(self.model_cfg.get("trust_remote_code", True)),
         )
         self._model = AutoModelForCausalLM.from_pretrained(
-            self.model_cfg["path_or_name"],
+            path_or_name,
             trust_remote_code=bool(self.model_cfg.get("trust_remote_code", True)),
             device_map=self.model_cfg.get("device_map", "auto"),
             torch_dtype=dtype,

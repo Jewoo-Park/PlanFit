@@ -1,16 +1,16 @@
 models:
   small:
     display_name: "Qwen 3 8B"
-    path_or_name: "/path/to/qwen3-8b-instruct"
+    path_or_name: "Qwen/Qwen3-8B"
     backend: "transformers"
     use_chat_template: true
     trust_remote_code: true
     device_map: "auto"
-    torch_dtype: "auto"
+    torch_dtype: "float16"
 
   strong:
     display_name: "Qwen 3 32B"
-    path_or_name: "/path/to/qwen3-32b-instruct"
+    path_or_name: "Qwen/Qwen3-32B-FP8"
     backend: "transformers"
     use_chat_template: true
     trust_remote_code: true
