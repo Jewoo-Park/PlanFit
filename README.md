@@ -33,12 +33,14 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Colab에서는 아래를 먼저 권장합니다.
+Colab에서는 **미리 깔린 `torch` / `torchvision` / `torchaudio`를 유지**하는 것이 안전합니다. `requirements.txt`는 `torch`를 올리므로 Colab에서는 아래를 사용하세요.
 
 ```bash
 pip install -U pip
-pip install -r requirements.txt
+pip install -r requirements-colab.txt
 ```
+
+로컬/venv에서는 기존처럼 `pip install -r requirements.txt`를 사용하면 됩니다.
 
 2. `configs/models.yaml`에서 실제 모델 경로 또는 Hugging Face ID를 수정
 
