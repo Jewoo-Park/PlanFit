@@ -1,4 +1,5 @@
 import gc
+import inspect
 import json
 import os
 import random
@@ -207,14 +208,18 @@ class HFTextGenerator:
             trust_remote_code=bool(self.model_cfg.get("trust_remote_code", True)),
             **rev_kw,
         )
-        self._model = AutoModelForCausalLM.from_pretrained(
-            path_or_name,
-            token=hf_token,
-            trust_remote_code=bool(self.model_cfg.get("trust_remote_code", True)),
-            device_map=self.model_cfg.get("device_map", "auto"),
-            torch_dtype=dtype,
+        model_kw: Dict[str, Any] = {
+            "token": hf_token,
+            "trust_remote_code": bool(self.model_cfg.get("trust_remote_code", True)),
+            "device_map": self.model_cfg.get("device_map", "auto"),
             **rev_kw,
-        )
+        }
+        load_sig = inspect.signature(AutoModelForCausalLM.from_pretrained)
+        if "dtype" in load_sig.parameters:
+            model_kw["dtype"] = dtype
+        else:
+            model_kw["torch_dtype"] = dtype
+        self._model = AutoModelForCausalLM.from_pretrained(path_or_name, **model_kw)
         if self._tokenizer.pad_token_id is None and self._tokenizer.eos_token_id is not None:
             self._tokenizer.pad_token_id = self._tokenizer.eos_token_id
 

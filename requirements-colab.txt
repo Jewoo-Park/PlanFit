@@ -1,5 +1,8 @@
 # Colab / notebook: use the preinstalled torch / torchvision / torchaudio stack.
 # Do not install torch here — pip would replace Colab's CUDA-matched wheels and break torchvision/torchaudio.
+#
+# If you see: RuntimeError: operator torchvision::nms does not exist
+#   → Restart runtime, then reinstall torch+torchvision+torchaudio together (see README Colab section).
 PyYAML>=6.0,<7
 transformers>=4.44.0,<5
 accelerate>=0.33.0,<1

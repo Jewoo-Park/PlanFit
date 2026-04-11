@@ -87,6 +87,26 @@ python src/generate_condition_a.py
 
 기본값으로 `tokenizer_use_fast: false`를 사용하므로, `tokenizer.json` 다운로드가 불안정한 환경에서도 상대적으로 안정적으로 시작할 수 있습니다.
 
+### Colab: `torchvision::nms does not exist` / `Could not import module 'Qwen3ForCausalLM'`
+
+`transformers`가 내부적으로 `torchvision`을 불러올 때, **torch와 torchvision 빌드가 서로 다른 버전**이면 위 오류가 납니다. (예: 예전에 `pip install torch==...`만 해서 쌍이 깨진 경우.)
+
+1. **가장 안전:** **런타임 재시작** 후 `pip install -r requirements-colab.txt`만 실행하고, `requirements.txt`로 torch를 올리지 않기.
+2. 이미 쌍이 깨졌다면, **torch / torchvision / torchaudio를 한 번에** 같은 CUDA용 휠로 맞춥니다 (Colab은 보통 CUDA 12.x → `cu124`).
+
+```bash
+pip install -U torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+pip install -U pip && pip install -r requirements-colab.txt
+```
+
+`cu124`에서 실패하면 Colab이 안내하는 인덱스로 바꾸거나, 아래로 동일 버전만 맞춰 재설치해 보세요.
+
+```bash
+pip install -U torch torchvision torchaudio
+```
+
+그 다음 `python src/generate.py --condition A`를 다시 실행합니다.
+
 ## 입력 데이터 형식
 
 기본 입력 파일은 `data/raw/personas.jsonl`입니다. 한 줄당 한 개의 JSON 객체를 사용합니다. 이 레포는 학습이 아니라 추론 실험용이므로 `train/dev/test` split을 기본 구조에 두지 않습니다. 최소 필드는 아래와 같습니다.
