@@ -33,6 +33,13 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+Colab에서는 아래를 먼저 권장합니다.
+
+```bash
+pip install -U pip
+pip install -r requirements.txt
+```
+
 2. `configs/models.yaml`에서 실제 모델 경로 또는 Hugging Face ID를 수정
 
 3. 페르소나 정규화
@@ -55,6 +62,28 @@ bash scripts/run_condition_d.sh
 ```bash
 bash scripts/run_all.sh
 ```
+
+## Colab 실행 팁
+
+Hugging Face 다운로드가 느리거나 멈추는 경우가 있으므로, Colab에서는 아래 순서를 권장합니다.
+
+```python
+from huggingface_hub import login
+login()
+```
+
+```bash
+export HF_HUB_ENABLE_HF_TRANSFER=1
+python src/load_personas.py
+python src/generate_condition_a.py
+```
+
+기본 `configs/models.yaml`은 아래 두 모델을 사용하도록 설정되어 있습니다.
+
+- `Qwen/Qwen3-8B`
+- `Qwen/Qwen3-32B-FP8`
+
+기본값으로 `tokenizer_use_fast: false`를 사용하므로, `tokenizer.json` 다운로드가 불안정한 환경에서도 상대적으로 안정적으로 시작할 수 있습니다.
 
 ## 입력 데이터 형식
 

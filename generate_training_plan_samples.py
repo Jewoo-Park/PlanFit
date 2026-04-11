@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 
 
-OUTPUT_PATH = Path("/Users/jw246/Desktop/NTU/NLP/PlanFit/training_plan_samples.json")
+OUTPUT_PATH = Path(__file__).resolve().parent / "training_plan_samples.json"
 
 
 DAY_NAMES = [

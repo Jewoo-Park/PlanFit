@@ -21,23 +21,28 @@ class GenerationMetadata:
     top_p: float
     max_tokens: int
     seed: int
+    generated_at: str
 
 
 @dataclass
 class OutputRecord:
+    persona_id: str
     user: Dict[str, Any]
     condition: str
     model_name: str
+    model_path_or_name: str
     solution_raw_text: str
     metadata: Dict[str, Any]
     original_plan: Optional[str] = None
     revised_plan: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        payload = {
+        payload: Dict[str, Any] = {
+            "persona_id": self.persona_id,
             "user": self.user,
             "condition": self.condition,
             "model_name": self.model_name,
+            "model_path_or_name": self.model_path_or_name,
             "solution_raw_text": self.solution_raw_text,
             "metadata": self.metadata,
         }
@@ -54,3 +59,12 @@ def build_user_payload(persona: Dict[str, Any]) -> Dict[str, Any]:
 
 def metadata_to_dict(metadata: GenerationMetadata) -> Dict[str, Any]:
     return asdict(metadata)
+
+
+def merge_metadata(
+    base: GenerationMetadata, extra: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    merged: Dict[str, Any] = metadata_to_dict(base)
+    if extra:
+        merged.update(extra)
+    return merged

@@ -1,5 +1,8 @@
-PyYAML>=6.0
-transformers>=4.44.0
-torch>=2.2.0
-accelerate>=0.33.0
-tqdm>=4.66.0
+# Upper bounds reduce surprise upgrades during experiments; for a fully pinned env use `pip freeze`.
+PyYAML>=6.0,<7
+transformers>=4.44.0,<5
+torch>=2.2.0,<2.7
+accelerate>=0.33.0,<1
+tqdm>=4.66.0,<5
+huggingface_hub>=0.24.0,<1
+hf_transfer>=0.1.8,<1
