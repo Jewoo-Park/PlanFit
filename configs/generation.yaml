@@ -1,0 +1,17 @@
+default:
+  prompt_version: "v1"
+  temperature: 0.7
+  top_p: 0.9
+  max_tokens: 2048
+  seed: 42
+
+conditions:
+  A:
+    model_alias: "small"
+  B:
+    model_alias: "small"
+  C:
+    planner_model_alias: "small"
+    reviser_model_alias: "strong"
+  D:
+    model_alias: "strong"

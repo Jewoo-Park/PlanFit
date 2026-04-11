@@ -1,0 +1,20 @@
+models:
+  small:
+    display_name: "Qwen 3 8B"
+    path_or_name: "/path/to/qwen3-8b-instruct"
+    backend: "transformers"
+    use_chat_template: true
+    trust_remote_code: true
+    device_map: "auto"
+    torch_dtype: "auto"
+
+  strong:
+    display_name: "Qwen 3 32B"
+    path_or_name: "/path/to/qwen3-32b-instruct"
+    backend: "transformers"
+    use_chat_template: true
+    trust_remote_code: true
+    device_map: "auto"
+    torch_dtype: "auto"
+
+judge_model_alias: "strong"

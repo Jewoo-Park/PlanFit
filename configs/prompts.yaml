@@ -1,0 +1,5 @@
+prompt_files:
+  A: "prompts/condition_a_direct.txt"
+  B: "prompts/condition_b_structured.txt"
+  C: "prompts/condition_c_reviser.txt"
+  D: "prompts/condition_d_direct_strong.txt"
