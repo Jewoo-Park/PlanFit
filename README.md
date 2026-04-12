@@ -1,115 +1,204 @@
-# training-planner-llm
+# PlanFit
 
-현실적인 4주 운동 계획 생성 능력을 평가하기 위한 실험 레포입니다. 이 레포는 사용자 페르소나 JSONL을 입력으로 받아 `Qwen 3 8B`와 `Qwen 3 32B`를 사용해 조건 `A/B/C/D` 실험을 실행하고, 결과를 저장하고, 규칙 기반 또는 LLM judge 기반 평가를 수행할 수 있도록 구성되어 있습니다.
+`PlanFit`은 4주 personalized hybrid training plan generation을 대상으로, 온디바이스급 소형 모델에 workflow 설계를 얹었을 때 planning quality의 격차를 얼마나 줄일 수 있는지 평가하는 실험 레포입니다.
 
-## 실험 목적
+이번 리스코프의 핵심 질문은 단순히 "작은 모델도 되나?"가 아니라, "on-device small model의 failure mode를 workflow가 얼마나 줄이고 local stronger reference와의 gap을 얼마나 회복하는가?"입니다.
 
-1. LLM이 목표, 일정 제약, 선호, 부상/제한사항을 반영한 고수준 planning을 수행할 수 있는지 평가
-2. 근비대 vs 러닝 유지, 감량 vs 근유지 같은 trade-off를 인지하고 합리적으로 절충하는지 평가
+## 현재 문서의 기준
 
-## 레포 구조
+이 README는 `Plan.md`에 정리된 **목표 실험 설계**를 기준으로 작성했습니다.  
+현재 코드베이스는 아직 기존 `A/B/C/D` 구조와 `Qwen3-8B` / `Qwen3-32B-FP8` 설정을 일부 유지하고 있으므로, 문서와 코드가 완전히 일치하지 않는 부분은 다음 코드 수정 단계에서 맞출 예정입니다.
 
-```text
-training-planner-llm/
-├─ README.md
-├─ requirements.txt
-├─ .gitignore
-├─ configs/
-├─ data/
-├─ prompts/
-├─ src/
-├─ scripts/
-├─ outputs/
-└─ logs/
-```
+## Research Questions
 
-## 빠른 시작
+1. Qwen3-1.7B 같은 on-device small model에 structured prompting과 workflow decomposition을 적용하면, direct prompting 대비 planning failure를 줄일 수 있는가?
+2. `1.7B + workflow`는 local reference인 `Qwen3-8B-AWQ direct`와의 gap을 얼마나 줄일 수 있는가?
+3. 이 workflow 효과는 더 작은 `Qwen3-0.6B`에서도 유지되는가, 아니면 capacity limit 때문에 빠르게 무너지는가?
 
-1. 의존성 설치
+## 고정할 실험 범위
+
+- Task: 4주 personalized hybrid training plan generation
+- Core rubric: `Constraint`, `Safety`, `Goal alignment`, `Trade-off`, `Coherence`
+- Output schema: `Week / Day / Focus / Session / Duration / Intensity / Reason`
+- Pilot personas: `P1 Junsu`, `P7 Soyeon`, `P8 Minseo`
+- Evaluation protocol: blind human scoring + quantitative/qualitative analysis 분리
+
+즉, rubric은 유지하고 model/system condition만 바꾸는 방향으로 갑니다.
+
+## 메인 실험 조건
+
+### Main conditions
+
+| Condition | Model | System | Role |
+| --- | --- | --- | --- |
+| `A'` | `Qwen3-1.7B` | Direct planner | on-device small baseline |
+| `B'` | `Qwen3-1.7B` | Structured planner | prompt structuring 효과 확인 |
+| `C'` | `Qwen3-1.7B` | LangGraph workflow planner | 핵심 제안 조건 |
+| `D'` | `Qwen3-8B-AWQ` | Direct planner | local stronger reference |
+
+### Ablation conditions
+
+| Condition | Model | System | Purpose |
+| --- | --- | --- | --- |
+| `E` | `Qwen3-0.6B` | Direct planner | 가장 작은 on-device baseline |
+| `F` | `Qwen3-0.6B` | Workflow planner | 극소형 모델에서도 workflow가 먹히는지 확인 |
+
+`0.6B structured`는 선택적 조건으로 남겨 두고, 우선은 `E/F`만으로 ablation을 구성합니다.
+
+## Workflow 정의
+
+`C'`의 핵심은 "멀티에이전트를 그냥 써본다"가 아니라, **같은 1.7B를 유지한 채 시스템 설계만 바꾸는 것**입니다.
+
+권장 workflow는 아래 순서를 따릅니다.
+
+1. `profile extractor`
+2. `goal prioritizer`
+3. `draft planner`
+4. `safety checker`
+5. `constraint checker`
+6. `trade-off checker`
+7. `reviser / formatter`
+
+이 구조를 통해 다음 비교를 명확하게 만듭니다.
+
+- `B'` vs `A'`: structured prompt만으로도 개선이 있는가
+- `C'` vs `B'`: workflow가 prompt structuring을 넘어서는 추가 이득을 주는가
+- `C'` vs `D'`: `1.7B + workflow`가 `8B-AWQ` reference에 얼마나 근접하는가
+- `F` vs `E`: workflow 효과가 0.6B에서도 유지되는가
+
+## 허점 분석 프레임
+
+기존 PlanFit의 정성 분석 틀은 유지하고, actor만 새 설정에 맞게 바꿉니다.
+
+| 기존 해석 축 | 새 해석 축 |
+| --- | --- |
+| small model 대표 실패 유형 | `0.6B / 1.7B direct` 대표 실패 유형 |
+| reviser가 잘 고친 오류 | workflow가 잘 고친 오류 |
+| reviser도 못 고친 오류 | workflow도 못 고친 오류 |
+| strong direct 안정성 | `8B-AWQ direct`가 local reference로 더 안정적인가 |
+| reasoning trace 반영 여부 | workflow trace / intermediate state가 제약을 제대로 반영하는가 |
+
+권장 failure tagging은 아래와 같습니다.
+
+| Failure type | Status label | Workflow-specific field |
+| --- | --- | --- |
+| Constraint violation | `fixed / partly fixed / not fixed` | `caught_by_node` |
+| Safety issue | `fixed / partly fixed / not fixed` | `caught_by_node` |
+| Goal misunderstanding | `fixed / not fixed` | `caught_by_node` |
+| Trade-off failure | `fixed / partly fixed / not fixed` | `caught_by_node` |
+| Long-term coherence issue | `fixed / not fixed` | `caught_by_node` |
+
+`caught_by_node`는 `extractor / safety checker / constraint checker / trade-off checker / not caught`처럼 기록합니다.
+
+## 평가 시트에 추가할 메타데이터
+
+기존 점수 체계는 유지하되, workflow 해석을 위해 아래 필드를 함께 저장합니다.
+
+- `model_family`
+- `system_type`
+- `model_calls`
+- `total_tokens`
+- `latency`
+- `checker_fail_count`
+- `revision_loops`
+- `caught_by_node`
+- `major_failure_mode`
+- `fixed_by_workflow`
+
+즉, 품질 점수만이 아니라 과정 비용까지 같이 비교합니다.
+
+## 파일럿과 본실험
+
+### Pilot
+
+- Personas: `P1`, `P7`, `P8`
+- Conditions: `A'`, `B'`, `C'`, `D'`, `E`, `F`
+- Total outputs: `3 personas x 6 conditions = 18 outputs`
+
+### Main experiment
+
+- Main result block: `10 personas x A'/B'/C'/D' = 40 outputs`
+- Extended ablation: pilot에서 `0.6B workflow`가 의미 있으면 `E/F`를 추가해 `+20 outputs`
+- Full total with ablation: `60 outputs`
+
+보고서 본문은 `A'/B'/C'/D'` 중심으로, `0.6B`는 appendix 또는 ablation section으로 두는 구성을 기본으로 합니다.
+
+## 현재 코드베이스와의 매핑
+
+현재 레포의 구현은 아직 legacy 구조를 따릅니다.
+
+| Current code | Current meaning | Planned direction |
+| --- | --- | --- |
+| `A` | small direct planner | `A'`로 유지하되 small model을 `1.7B`로 교체 |
+| `B` | small structured planner | `B'`로 유지하되 model을 `1.7B`로 교체 |
+| `C` | small planner + strong reviser | `C'`의 workflow planner로 재설계 필요 |
+| `D` | strong direct planner | `D'`로 유지하되 `8B-AWQ local reference`로 교체 |
+
+현재 `configs/models.yaml` 기본값은 아직 아래처럼 되어 있습니다.
+
+- `small = Qwen/Qwen3-8B`
+- `strong = Qwen/Qwen3-32B-FP8`
+
+다음 코드 수정 단계에서 이 설정을 on-device 실험 설계에 맞게 바꿉니다.
+
+## Working Environment
+
+앞으로 로컬 작업은 모두 `conda` 환경 `nlp`를 기준으로 진행합니다.
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
+conda activate nlp
+```
+
+의존성 설치도 같은 환경에서 수행합니다.
+
+```bash
+conda activate nlp
 pip install -r requirements.txt
 ```
 
-Colab에서는 **미리 깔린 `torch` / `torchvision` / `torchaudio`를 유지**하는 것이 안전합니다. `requirements.txt`는 `torch`를 올리므로 Colab에서는 아래를 사용하세요.
+## 현재 기준 실행 명령
+
+코드 리팩터링 전까지는 기존 엔트리포인트를 그대로 사용합니다.
 
 ```bash
-pip install -U pip
-pip install -r requirements-colab.txt
-```
-
-로컬/venv에서는 기존처럼 `pip install -r requirements.txt`를 사용하면 됩니다.
-
-2. `configs/models.yaml`에서 실제 모델 경로 또는 Hugging Face ID를 수정
-
-3. 페르소나 정규화
-
-```bash
-python3 src/load_personas.py
-```
-
-4. 조건별 생성 실행
-
-```bash
+conda activate nlp
+python src/load_personas.py
 bash scripts/run_condition_a.sh
 bash scripts/run_condition_b.sh
 bash scripts/run_condition_c.sh
 bash scripts/run_condition_d.sh
 ```
 
-또는 전체 실행:
+전체 실행:
 
 ```bash
+conda activate nlp
 bash scripts/run_all.sh
 ```
 
-## Colab 실행 팁
+## 현재 기준 평가 명령
 
-Hugging Face 다운로드가 느리거나 멈추는 경우가 있으므로, Colab에서는 아래 순서를 권장합니다.
-
-```python
-from huggingface_hub import login
-login()
-```
+규칙 기반 평가:
 
 ```bash
-export HF_HUB_ENABLE_HF_TRANSFER=1
-python src/load_personas.py
-python src/generate_condition_a.py
+conda activate nlp
+python src/evaluate_rule_based.py \
+  --outputs outputs/condition_a/results.jsonl \
+  --personas data/processed/personas_normalized.jsonl
 ```
 
-기본 `configs/models.yaml`은 아래 두 모델을 사용하도록 설정되어 있습니다.
-
-- `Qwen/Qwen3-8B`
-- `Qwen/Qwen3-32B-FP8`
-
-기본값으로 `tokenizer_use_fast: false`를 사용하므로, `tokenizer.json` 다운로드가 불안정한 환경에서도 상대적으로 안정적으로 시작할 수 있습니다.
-
-### Colab: `torchvision::nms does not exist` / `Could not import module 'Qwen3ForCausalLM'`
-
-`transformers`가 내부적으로 `torchvision`을 불러올 때, **torch와 torchvision 빌드가 서로 다른 버전**이면 위 오류가 납니다. (예: 예전에 `pip install torch==...`만 해서 쌍이 깨진 경우.)
-
-1. **가장 안전:** **런타임 재시작** 후 `pip install -r requirements-colab.txt`만 실행하고, `requirements.txt`로 torch를 올리지 않기.
-2. 이미 쌍이 깨졌다면, **torch / torchvision / torchaudio를 한 번에** 같은 CUDA용 휠로 맞춥니다 (Colab은 보통 CUDA 12.x → `cu124`).
+LLM judge 평가:
 
 ```bash
-pip install -U torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
-pip install -U pip && pip install -r requirements-colab.txt
+conda activate nlp
+python src/evaluate_llm_judge.py \
+  --outputs outputs/condition_a/results.jsonl \
+  --personas data/processed/personas_normalized.jsonl
 ```
 
-`cu124`에서 실패하면 Colab이 안내하는 인덱스로 바꾸거나, 아래로 동일 버전만 맞춰 재설치해 보세요.
+## 입력 데이터
 
-```bash
-pip install -U torch torchvision torchaudio
-```
-
-그 다음 `python src/generate.py --condition A`를 다시 실행합니다.
-
-## 입력 데이터 형식
-
-기본 입력 파일은 `data/raw/personas.jsonl`입니다. 한 줄당 한 개의 JSON 객체를 사용합니다. 이 레포는 학습이 아니라 추론 실험용이므로 `train/dev/test` split을 기본 구조에 두지 않습니다. 최소 필드는 아래와 같습니다.
+기본 입력 파일은 `data/raw/personas.jsonl`이며, 한 줄당 한 개의 JSON 객체를 사용합니다. 최소 필드는 아래와 같습니다.
 
 ```json
 {
@@ -126,72 +215,13 @@ pip install -U torch torchvision torchaudio
 }
 ```
 
-추가로 평가용 메모(`must_reflect_constraints`, `dangerous_plan_examples`, `major_deduction_points`)를 포함할 수 있습니다.
+추가로 평가용 메모(`must_reflect_constraints`, `dangerous_plan_examples`, `major_deduction_points`)를 함께 둘 수 있습니다.
 
-## 출력 형식
+## 메인 메시지
 
-조건 `A/B/D`는 각 샘플을 아래 형식으로 저장합니다.
+이 프로젝트의 최종 메시지는 "0.6B나 1.7B가 곧바로 8B급이다"가 아닙니다.  
+더 안전한 주장은 아래와 같습니다.
 
-```json
-{
-  "user": {
-    "age": "",
-    "training_background": "",
-    "primary_goal": "",
-    "secondary_goal": "",
-    "schedule_constraint": "",
-    "injury_or_limitation": "",
-    "preferences": "",
-    "dislikes": ""
-  },
-  "condition": "A | B | D",
-  "model_name": "string",
-  "solution_raw_text": "full model output",
-  "metadata": {
-    "prompt_version": "v1",
-    "temperature": 0.7,
-    "top_p": 0.9,
-    "max_tokens": 2048,
-    "seed": 42
-  }
-}
-```
+> workflow가 on-device small model의 failure mode를 얼마나 줄이고, task-specific planning rubric에서 local `8B-AWQ` reference와의 gap을 얼마나 회복하는가
 
-조건 `C`는 아래 필드를 추가로 저장합니다.
-
-```json
-{
-  "original_plan": "string",
-  "revised_plan": "string"
-}
-```
-
-## 실행 흐름
-
-- `A`: 소형 모델 direct planner
-- `B`: 소형 모델 structured planner
-- `C`: 소형 모델로 `A` 생성 후, 대형 모델 reviser로 수정
-- `D`: 대형 모델 direct planner
-
-## 평가
-
-### 규칙 기반 평가
-
-```bash
-python3 src/evaluate_rule_based.py \
-  --outputs outputs/condition_a/results.jsonl \
-  --personas data/processed/personas_normalized.jsonl
-```
-
-### LLM judge 평가
-
-```bash
-python3 src/evaluate_llm_judge.py \
-  --outputs outputs/condition_a/results.jsonl \
-  --personas data/processed/personas_normalized.jsonl
-```
-
-## 주의
-
-- `Qwen 3 32B`는 큰 메모리를 요구할 수 있으므로 실제 사용 환경에 맞는 양자화 모델 또는 로컬 경로를 `configs/models.yaml`에서 설정해야 합니다.
-- 이 레포는 의료 조언을 하지 않으며, 프롬프트 차원의 안전 제약만 평가합니다.
+이 framing을 유지하면, 이번 프로젝트는 단순한 multi-agent 적용 사례가 아니라 **온디바이스 환경에서 시스템 설계가 model-size gap을 얼마나 메울 수 있는지**를 묻는 연구로 정리할 수 있습니다.
