@@ -1,7 +1,18 @@
 models:
+  tiny:
+    display_name: "Qwen 3 0.6B"
+    path_or_name: "Qwen/Qwen3-0.6B"
+    revision: null
+    backend: "transformers"
+    use_chat_template: true
+    tokenizer_use_fast: false
+    trust_remote_code: true
+    device_map: "auto"
+    torch_dtype: "float16"
+
   small:
-    display_name: "Qwen 3 8B"
-    path_or_name: "Qwen/Qwen3-8B"
+    display_name: "Qwen 3 1.7B"
+    path_or_name: "Qwen/Qwen3-1.7B"
     # Pin a HF git revision for reproducible weights, e.g. "abc123..."
     revision: null
     backend: "transformers"
@@ -12,14 +23,14 @@ models:
     torch_dtype: "float16"
 
   strong:
-    display_name: "Qwen 3 32B"
-    path_or_name: "Qwen/Qwen3-32B-FP8"
+    display_name: "Qwen 3 14B AWQ"
+    path_or_name: "Qwen/Qwen3-14B-AWQ"
     revision: null
     backend: "transformers"
     use_chat_template: true
     tokenizer_use_fast: false
     trust_remote_code: true
     device_map: "auto"
-    torch_dtype: "auto"
+    torch_dtype: "float16"
 
 judge_model_alias: "strong"

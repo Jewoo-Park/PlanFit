@@ -8,3 +8,5 @@ outputs/**/records/
 outputs/**/evaluation_*.jsonl
 data/processed/*.jsonl
 data/splits/*.jsonl
+
+/aaaa/

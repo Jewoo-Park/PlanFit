@@ -8,10 +8,29 @@ default:
 conditions:
   A:
     model_alias: "small"
+    prompt_key: "A"
+    runner: "direct"
+    system_type: "direct_planner"
   B:
     model_alias: "small"
+    prompt_key: "B"
+    runner: "direct"
+    system_type: "structured_planner"
   C:
-    planner_model_alias: "small"
-    reviser_model_alias: "strong"
+    workflow_model_alias: "small"
+    runner: "workflow"
+    system_type: "langgraph_workflow_planner"
   D:
     model_alias: "strong"
+    prompt_key: "D"
+    runner: "direct"
+    system_type: "direct_planner"
+  E:
+    model_alias: "tiny"
+    prompt_key: "A"
+    runner: "direct"
+    system_type: "direct_planner"
+  F:
+    workflow_model_alias: "tiny"
+    runner: "workflow"
+    system_type: "langgraph_workflow_planner"

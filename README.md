@@ -7,7 +7,7 @@
 ## 현재 문서의 기준
 
 이 README는 `Plan.md`에 정리된 **목표 실험 설계**를 기준으로 작성했습니다.  
-현재 코드베이스는 아직 기존 `A/B/C/D` 구조와 `Qwen3-8B` / `Qwen3-32B-FP8` 설정을 일부 유지하고 있으므로, 문서와 코드가 완전히 일치하지 않는 부분은 다음 코드 수정 단계에서 맞출 예정입니다.
+현재 코드는 `A/B/C/D/E/F`까지 실행 가능하며, `C/F`는 `LangGraph` 기반 workflow planner로 연결되어 있습니다.
 
 ## Research Questions
 
@@ -41,7 +41,7 @@
 | Condition | Model | System | Purpose |
 | --- | --- | --- | --- |
 | `E` | `Qwen3-0.6B` | Direct planner | 가장 작은 on-device baseline |
-| `F` | `Qwen3-0.6B` | Workflow planner | 극소형 모델에서도 workflow가 먹히는지 확인 |
+| `F` | `Qwen3-0.6B` | LangGraph workflow planner | 극소형 모델에서도 workflow가 먹히는지 확인 |
 
 `0.6B structured`는 선택적 조건으로 남겨 두고, 우선은 `E/F`만으로 ablation을 구성합니다.
 
@@ -131,15 +131,18 @@
 | --- | --- | --- |
 | `A` | small direct planner | `A'`로 유지하되 small model을 `1.7B`로 교체 |
 | `B` | small structured planner | `B'`로 유지하되 model을 `1.7B`로 교체 |
-| `C` | small planner + strong reviser | `C'`의 workflow planner로 재설계 필요 |
-| `D` | strong direct planner | `D'`로 유지하되 `8B-AWQ local reference`로 교체 |
+| `C` | small LangGraph workflow planner | `C'` 구현 완료 |
+| `D` | strong direct planner | `D'` local stronger reference |
+| `E` | tiny direct planner | `0.6B` ablation baseline |
+| `F` | tiny LangGraph workflow planner | `0.6B` workflow ablation |
 
-현재 `configs/models.yaml` 기본값은 아직 아래처럼 되어 있습니다.
+현재 `configs/models.yaml` 기본값은 아래처럼 되어 있습니다.
 
-- `small = Qwen/Qwen3-8B`
-- `strong = Qwen/Qwen3-32B-FP8`
+- `tiny = Qwen/Qwen3-0.6B`
+- `small = Qwen/Qwen3-1.7B`
+- `strong = Qwen/Qwen3-14B-AWQ`
 
-다음 코드 수정 단계에서 이 설정을 on-device 실험 설계에 맞게 바꿉니다.
+즉 현재 코드도 이미 on-device 실험 설계에 맞춘 상태입니다.
 
 ## Working Environment
 
@@ -167,6 +170,8 @@ bash scripts/run_condition_a.sh
 bash scripts/run_condition_b.sh
 bash scripts/run_condition_c.sh
 bash scripts/run_condition_d.sh
+bash scripts/run_condition_e.sh
+bash scripts/run_condition_f.sh
 ```
 
 전체 실행:

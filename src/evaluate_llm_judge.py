@@ -17,7 +17,7 @@ Score the candidate plan from 1 to 5 on:
 - progression_coherence
 
 Return strict JSON with this schema:
-{
+{{
   "goal_alignment": 1-5,
   "constraint_adherence": 1-5,
   "safety": 1-5,
@@ -25,7 +25,7 @@ Return strict JSON with this schema:
   "progression_coherence": 1-5,
   "overall": 1-5,
   "rationale": "short explanation"
-}
+}}
 
 [User Profile]
 {persona}

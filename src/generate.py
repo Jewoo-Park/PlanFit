@@ -1,5 +1,5 @@
 import argparse
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from tqdm import tqdm
 
@@ -15,6 +15,7 @@ from utils import (
     set_seed,
     utc_now_iso,
 )
+from workflow import LangGraphWorkflowRunner
 
 
 CONDITION_OUTPUT_DEFAULTS = {
@@ -22,6 +23,8 @@ CONDITION_OUTPUT_DEFAULTS = {
     "B": "outputs/condition_b",
     "C": "outputs/condition_c",
     "D": "outputs/condition_d",
+    "E": "outputs/condition_e",
+    "F": "outputs/condition_f",
 }
 
 
@@ -42,7 +45,18 @@ def _metadata_extra_for_model(
     return extra
 
 
-def run_condition_abd(
+def _metadata_base(default_gen: Dict[str, Any], generated_at: str) -> GenerationMetadata:
+    return GenerationMetadata(
+        prompt_version=str(default_gen["prompt_version"]),
+        temperature=float(default_gen["temperature"]),
+        top_p=float(default_gen["top_p"]),
+        max_tokens=int(default_gen["max_tokens"]),
+        seed=int(default_gen["seed"]),
+        generated_at=generated_at,
+    )
+
+
+def run_direct_condition(
     condition: str,
     personas: List[Dict[str, Any]],
     models_data: Dict[str, Any],
@@ -56,17 +70,11 @@ def run_condition_abd(
     model_cfg = _model_cfg(models_data, alias)
     generator = build_generator(model_cfg)
 
-    prompt_key = condition
+    prompt_key = cond_cfg.get("prompt_key", condition)
     prompt_path = prompts_cfg["prompt_files"][prompt_key]
-    meta_base = GenerationMetadata(
-        prompt_version=str(default_gen["prompt_version"]),
-        temperature=float(default_gen["temperature"]),
-        top_p=float(default_gen["top_p"]),
-        max_tokens=int(default_gen["max_tokens"]),
-        seed=int(default_gen["seed"]),
-        generated_at=generated_at,
-    )
+    meta_base = _metadata_base(default_gen, generated_at)
     extra = _metadata_extra_for_model(model_cfg, {"main": prompt_path})
+    extra["system_type"] = str(cond_cfg.get("system_type", "direct"))
 
     records: List[Dict[str, Any]] = []
     for persona in tqdm(personas, desc=f"Condition {condition}"):
@@ -86,7 +94,8 @@ def run_condition_abd(
     return records
 
 
-def run_condition_c(
+def run_workflow_condition(
+    condition: str,
     personas: List[Dict[str, Any]],
     models_data: Dict[str, Any],
     prompts_cfg: Dict[str, Any],
@@ -94,59 +103,53 @@ def run_condition_c(
     default_gen: Dict[str, Any],
     generated_at: str,
 ) -> List[Dict[str, Any]]:
-    cond_cfg = generation_cfg["conditions"]["C"]
-    planner_alias = cond_cfg["planner_model_alias"]
-    reviser_alias = cond_cfg["reviser_model_alias"]
-    planner_cfg = _model_cfg(models_data, planner_alias)
-    reviser_cfg = _model_cfg(models_data, reviser_alias)
+    cond_cfg = generation_cfg["conditions"][condition]
+    alias = cond_cfg["workflow_model_alias"]
+    model_cfg = _model_cfg(models_data, alias)
+    generator = build_generator(model_cfg)
+    meta_base = _metadata_base(default_gen, generated_at)
 
-    planner_prompt_path = prompts_cfg["prompt_files"]["A"]
-    reviser_prompt_path = prompts_cfg["prompt_files"]["C"]
-
-    meta_base = GenerationMetadata(
-        prompt_version=str(default_gen["prompt_version"]),
-        temperature=float(default_gen["temperature"]),
-        top_p=float(default_gen["top_p"]),
-        max_tokens=int(default_gen["max_tokens"]),
-        seed=int(default_gen["seed"]),
-        generated_at=generated_at,
+    workflow_runner = LangGraphWorkflowRunner(
+        generator=generator,
+        prompts_cfg=prompts_cfg,
+        gen_cfg=default_gen,
     )
-
-    small_generator = build_generator(planner_cfg)
-    originals: List[Tuple[Dict[str, Any], str]] = []
-    for persona in tqdm(personas, desc="Condition C (planner)"):
-        original_prompt = build_prompt("A", persona, prompts_cfg)
-        original_plan = small_generator.generate(original_prompt, default_gen)
-        originals.append((persona, original_plan))
-    small_generator.unload()
-
-    strong_generator = build_generator(reviser_cfg)
-    records: List[Dict[str, Any]] = []
-    metadata_extra: Dict[str, Any] = {
-        "prompt_files": {"planner": planner_prompt_path, "reviser": reviser_prompt_path},
-        "planner_model_path_or_name": str(planner_cfg["path_or_name"]),
-        "reviser_model_path_or_name": str(reviser_cfg["path_or_name"]),
+    workflow_prompt_files = {
+        prompt_key: prompts_cfg["prompt_files"][prompt_key]
+        for prompt_key in workflow_runner.prompt_keys.values()
     }
-    prev = planner_cfg.get("revision") or planner_cfg.get("hf_revision")
-    if prev not in (None, "", "null"):
-        metadata_extra["planner_hf_revision"] = str(prev)
-    rrev = reviser_cfg.get("revision") or reviser_cfg.get("hf_revision")
-    if rrev not in (None, "", "null"):
-        metadata_extra["reviser_hf_revision"] = str(rrev)
+    metadata_base = _metadata_extra_for_model(model_cfg, workflow_prompt_files)
+    metadata_base["system_type"] = str(cond_cfg.get("system_type", "langgraph_workflow"))
+    metadata_base["workflow_nodes"] = workflow_runner.node_order
 
-    for persona, original_plan in tqdm(originals, desc="Condition C (reviser)"):
-        reviser_prompt = build_prompt("C", persona, prompts_cfg, small_model_output=original_plan)
-        revised_plan = strong_generator.generate(reviser_prompt, default_gen)
+    records: List[Dict[str, Any]] = []
+    for persona in tqdm(personas, desc=f"Condition {condition} (workflow)"):
+        workflow_result = workflow_runner.run(persona)
+        metadata_extra = dict(metadata_base)
+        metadata_extra.update(
+            {
+                "workflow_trace": workflow_result["workflow_trace"],
+                "model_calls": workflow_result["model_calls"],
+                "checker_fail_count": workflow_result["checker_fail_count"],
+                "revision_loops": workflow_result["revision_loops"],
+                "caught_by_node": workflow_result["caught_by_node"],
+                "profile_summary": workflow_result["profile_summary"],
+                "goal_strategy": workflow_result["goal_strategy"],
+                "safety_review": workflow_result["safety_review"],
+                "constraint_review": workflow_result["constraint_review"],
+                "tradeoff_review": workflow_result["tradeoff_review"],
+            }
+        )
         records.append(
             build_output_record(
                 persona=persona,
-                condition="C",
-                model_name=reviser_cfg["display_name"],
-                model_path_or_name=str(reviser_cfg["path_or_name"]),
-                solution_raw_text=revised_plan,
+                condition=condition,
+                model_name=model_cfg["display_name"],
+                model_path_or_name=str(model_cfg["path_or_name"]),
+                solution_raw_text=workflow_result["final_plan"],
                 metadata=meta_base,
-                original_plan=original_plan,
-                revised_plan=revised_plan,
+                original_plan=workflow_result["draft_plan"],
+                revised_plan=workflow_result["final_plan"],
                 metadata_extra=metadata_extra,
             )
         )
@@ -154,8 +157,8 @@ def run_condition_c(
 
 
 def main(argv: Optional[List[str]] = None) -> None:
-    parser = argparse.ArgumentParser(description="Generate training plans for conditions A–D.")
-    parser.add_argument("--condition", choices=["A", "B", "C", "D"], required=True)
+    parser = argparse.ArgumentParser(description="Generate training plans for conditions A–F.")
+    parser.add_argument("--condition", choices=["A", "B", "C", "D", "E", "F"], required=True)
     parser.add_argument("--input", default="data/processed/personas_normalized.jsonl")
     parser.add_argument("--models-config", default="configs/models.yaml")
     parser.add_argument("--prompts-config", default="configs/prompts.yaml")
@@ -191,12 +194,19 @@ def main(argv: Optional[List[str]] = None) -> None:
         default_gen=default_gen,
     )
 
-    if args.condition == "C":
-        records = run_condition_c(
-            personas, models_data, prompts_cfg, generation_cfg, default_gen, generated_at
+    runner_type = generation_cfg["conditions"][args.condition].get("runner", "direct")
+    if runner_type == "workflow":
+        records = run_workflow_condition(
+            args.condition,
+            personas,
+            models_data,
+            prompts_cfg,
+            generation_cfg,
+            default_gen,
+            generated_at,
         )
     else:
-        records = run_condition_abd(
+        records = run_direct_condition(
             args.condition,
             personas,
             models_data,
