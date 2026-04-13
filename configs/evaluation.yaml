@@ -12,7 +12,7 @@ rule_based:
     calf: ["calf", "low-impact", "easy run", "run-walk", "elliptical", "bike"]
 
 llm_judge:
-  max_tokens: 1024
+  max_tokens: 2048
   temperature: 0.0
   top_p: 1.0
   scale_min: 1

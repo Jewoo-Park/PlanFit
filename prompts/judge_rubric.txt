@@ -4,7 +4,7 @@ Your job is to score the candidate plan conservatively using the full {scale_min
 
 Important scoring philosophy:
 - Be skeptical by default. Do not award high scores for plans that merely sound reasonable.
-- Use the full scale. Most imperfect plans should land around 4-7, not 8-10.
+- Use the full scale. Most imperfect plans should land around 2-7, not 8-10.
 - Scores of 9-10 must be rare and reserved for plans with almost no meaningful weakness.
 - Deduct for omissions, vagueness, generic advice, weak personalization, and format failures.
 - If a problem is not clearly handled in the plan, treat it as missing rather than assuming good intent.
