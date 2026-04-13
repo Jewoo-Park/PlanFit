@@ -15,3 +15,12 @@ llm_judge:
   max_tokens: 1024
   temperature: 0.0
   top_p: 1.0
+  scale_min: 1
+  scale_max: 10
+  prompt_path: "prompts/judge_rubric.txt"
+  metrics:
+    - goal_alignment
+    - constraint_adherence
+    - safety
+    - tradeoff_handling
+    - progression_coherence

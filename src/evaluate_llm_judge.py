@@ -1,58 +1,117 @@
 import argparse
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from tqdm import tqdm
 
 from utils import build_generator, load_jsonl, load_yaml, read_text, resolve_path, write_jsonl
 
-
-JUDGE_PROMPT = """You are an evaluation judge for personalized training plans.
-
-Score the candidate plan from 1 to 5 on:
-- goal_alignment
-- constraint_adherence
-- safety
-- tradeoff_handling
-- progression_coherence
-
-Return strict JSON with this schema:
-{{
-  "goal_alignment": 1-5,
-  "constraint_adherence": 1-5,
-  "safety": 1-5,
-  "tradeoff_handling": 1-5,
-  "progression_coherence": 1-5,
-  "overall": 1-5,
-  "rationale": "short explanation"
-}}
-
-[User Profile]
-{persona}
-
-[Candidate Plan]
-{plan}
-"""
+DEFAULT_METRICS = [
+    "goal_alignment",
+    "constraint_adherence",
+    "safety",
+    "tradeoff_handling",
+    "progression_coherence",
+]
 
 
-def parse_json_or_fallback(text: str) -> Dict[str, Any]:
+def _coerce_score(value: Any, scale_min: int, scale_max: int) -> Optional[int]:
+    if isinstance(value, bool) or value is None:
+        return None
+    numeric: Optional[float] = None
+    if isinstance(value, (int, float)):
+        numeric = float(value)
+    elif isinstance(value, str):
+        try:
+            numeric = float(value.strip())
+        except ValueError:
+            return None
+    if numeric is None:
+        return None
+    clamped = max(scale_min, min(scale_max, int(round(numeric))))
+    return clamped
+
+
+def _normalize_judgment(
+    payload: Dict[str, Any],
+    metrics: List[str],
+    scale_min: int,
+    scale_max: int,
+    fallback_rationale: str = "",
+) -> Dict[str, Any]:
+    normalized: Dict[str, Any] = {}
+    for metric in metrics + ["overall"]:
+        normalized[metric] = _coerce_score(payload.get(metric), scale_min, scale_max)
+
+    major_issues = payload.get("major_issues", [])
+    if isinstance(major_issues, list):
+        normalized["major_issues"] = [str(item).strip() for item in major_issues if str(item).strip()][:4]
+    elif major_issues in (None, ""):
+        normalized["major_issues"] = []
+    else:
+        normalized["major_issues"] = [str(major_issues).strip()]
+
+    rationale = str(payload.get("rationale") or fallback_rationale).strip()
+    normalized["rationale"] = rationale[:1000]
+    return normalized
+
+
+def _json_schema(metrics: List[str], scale_min: int, scale_max: int) -> str:
+    lines = ["{"]
+    for metric in metrics:
+        lines.append(f'  "{metric}": {scale_min}-{scale_max},')
+    lines.extend(
+        [
+            f'  "overall": {scale_min}-{scale_max},',
+            '  "major_issues": ["short issue 1", "short issue 2"],',
+            '  "rationale": "short critical explanation"',
+            "}",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _metrics_block(metrics: List[str]) -> str:
+    return "\n".join(f"- {metric}" for metric in metrics)
+
+
+def build_judge_prompt(
+    prompt_template: str,
+    *,
+    persona: Dict[str, Any],
+    plan: str,
+    metrics: List[str],
+    scale_min: int,
+    scale_max: int,
+) -> str:
+    return prompt_template.format(
+        scale_min=scale_min,
+        scale_max=scale_max,
+        metrics_block=_metrics_block(metrics),
+        json_schema=_json_schema(metrics, scale_min, scale_max),
+        persona=json.dumps(persona, ensure_ascii=False, indent=2),
+        plan=plan,
+    )
+
+
+def parse_json_or_fallback(
+    text: str,
+    *,
+    metrics: List[str],
+    scale_min: int,
+    scale_max: int,
+) -> Dict[str, Any]:
     text = text.strip()
     start = text.find("{")
     end = text.rfind("}")
     if start != -1 and end != -1 and end > start:
         try:
-            return json.loads(text[start : end + 1])
+            payload = json.loads(text[start : end + 1])
+            if isinstance(payload, dict):
+                return _normalize_judgment(payload, metrics, scale_min, scale_max, fallback_rationale=text[:500])
         except json.JSONDecodeError:
             pass
-    return {
-        "goal_alignment": None,
-        "constraint_adherence": None,
-        "safety": None,
-        "tradeoff_handling": None,
-        "progression_coherence": None,
-        "overall": None,
-        "rationale": text[:500],
-    }
+    return _normalize_judgment({}, metrics, scale_min, scale_max, fallback_rationale=text[:500])
 
 
 def main() -> None:
@@ -74,6 +133,10 @@ def main() -> None:
     judge_model_cfg = models_cfg["models"][judge_alias]
     judge_generator = build_generator(judge_model_cfg)
     gen_cfg = eval_cfg["llm_judge"]
+    metrics = list(gen_cfg.get("metrics", DEFAULT_METRICS))
+    scale_min = int(gen_cfg.get("scale_min", 1))
+    scale_max = int(gen_cfg.get("scale_max", 10))
+    prompt_template = read_text(str(gen_cfg.get("prompt_path", "prompts/judge_rubric.txt")))
 
     results: List[Dict[str, Any]] = []
     for record in tqdm(records, desc="LLM Judge"):
@@ -85,9 +148,13 @@ def main() -> None:
         persona = persona_index.get(key)
         if persona is None:
             continue
-        judge_prompt = JUDGE_PROMPT.format(
-            persona=json.dumps(persona, ensure_ascii=False, indent=2),
+        judge_prompt = build_judge_prompt(
+            prompt_template,
+            persona=persona,
             plan=record["solution_raw_text"],
+            metrics=metrics,
+            scale_min=scale_min,
+            scale_max=scale_max,
         )
         raw_judgment = judge_generator.generate(judge_prompt, gen_cfg)
         results.append(
@@ -95,7 +162,12 @@ def main() -> None:
                 "condition": record["condition"],
                 "model_name": record["model_name"],
                 "persona_id": persona.get("id", ""),
-                "judgment": parse_json_or_fallback(raw_judgment),
+                "judgment": parse_json_or_fallback(
+                    raw_judgment,
+                    metrics=metrics,
+                    scale_min=scale_min,
+                    scale_max=scale_max,
+                ),
                 "raw_judgment_text": raw_judgment,
             }
         )

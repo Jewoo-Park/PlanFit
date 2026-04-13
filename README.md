@@ -201,6 +201,8 @@ python src/evaluate_llm_judge.py \
   --personas data/processed/personas_normalized.jsonl
 ```
 
+현재 LLM judge는 `1-10` 스케일을 사용하며, 비판적 rubric은 [prompts/judge_rubric.txt](/home/gon-mac/local/NLP-Proj/prompts/judge_rubric.txt)에, 관련 설정은 [configs/evaluation.yaml](/home/gon-mac/local/NLP-Proj/configs/evaluation.yaml)에 있습니다.
+
 ## 입력 데이터
 
 기본 입력 파일은 `data/raw/personas.jsonl`이며, 한 줄당 한 개의 JSON 객체를 사용합니다. 최소 필드는 아래와 같습니다.
