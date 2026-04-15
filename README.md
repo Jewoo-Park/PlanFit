@@ -194,7 +194,7 @@ Input Format
 ```
 ## Results
 
-![PlanFit Framework](./assets/Figure2.png)
+![PlanFit Framework](./assets/Figure4.png)
 
 
 ## Main Message
