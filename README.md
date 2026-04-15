@@ -1,5 +1,8 @@
 # PlanFit
 
+![Uploading Figure1.png…]()
+
+
 `PlanFit` is an experimental repository focused on **4-week personalized hybrid training plan generation**, aiming to **expose the limitations of small LLMs in multi-objective planning tasks** and evaluate how much structured prompting and workflow design can mitigate those limitations.
 
 The core objective of this project is not to show that “workflow always improves performance,” but rather to verify that **multi-objective planning is particularly challenging for small models, and that the effectiveness of improvements varies depending on model capacity**.
