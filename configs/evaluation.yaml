@@ -1,16 +1,3 @@
-rule_based:
-  weights:
-    goal_alignment: 0.25
-    schedule_compliance: 0.2
-    limitation_handling: 0.2
-    tradeoff_handling: 0.2
-    progression_coherence: 0.15
-  limitation_keywords:
-    lower-back: ["lower-back", "back", "spine", "supported", "machine", "avoid heavy"]
-    knee: ["knee", "pain-tolerable", "low-impact", "bike", "elliptical", "modify"]
-    upper-limb: ["single-arm", "unilateral", "grip", "machine", "modified", "ROM", "range"]
-    calf: ["calf", "low-impact", "easy run", "run-walk", "elliptical", "bike"]
-
 llm_judge:
   max_tokens: 2048
   temperature: 0.0

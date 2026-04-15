@@ -7,29 +7,29 @@ default:
 
 conditions:
   A:
-    model_alias: "small"
+    model_alias: "tiny"
     prompt_key: "direct"
     runner: "direct"
     system_type: "direct_planner"
   B:
     model_alias: "small"
+    prompt_key: "direct"
+    runner: "direct"
+    system_type: "direct_planner"
+  C:
+    model_alias: "small"
     prompt_key: "structured"
     runner: "direct"
     system_type: "structured_planner"
-  C:
-    workflow_model_alias: "small"
-    runner: "workflow"
-    system_type: "langgraph_workflow_planner"
   D:
     model_alias: "strong"
     prompt_key: "direct"
     runner: "direct"
     system_type: "direct_planner"
   E:
-    model_alias: "tiny"
-    prompt_key: "direct"
-    runner: "direct"
-    system_type: "direct_planner"
+    workflow_model_alias: "small"
+    runner: "workflow"
+    system_type: "langgraph_workflow_planner"
   F:
     workflow_model_alias: "tiny"
     runner: "workflow"

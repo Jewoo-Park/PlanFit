@@ -6,8 +6,7 @@
 
 ## 현재 문서의 기준
 
-이 README는 **과제 보고서용 condition label**을 기준으로 실험을 설명합니다.  
-README에서는 `A/B/C/D/E/F`를 아래 순서로 사용합니다.
+이 README와 실제 코드 실행 라벨은 같은 condition 순서를 사용합니다.
 
 - `A`: `Qwen3-0.6B` direct
 - `B`: `Qwen3-1.7B` direct
@@ -15,8 +14,6 @@ README에서는 `A/B/C/D/E/F`를 아래 순서로 사용합니다.
 - `D`: `Qwen3-14B-AWQ` direct
 - `E`: `Qwen3-1.7B` workflow
 - `F`: `Qwen3-0.6B` workflow
-
-다만 현재 코드 실행 이름은 아직 legacy mapping을 유지하며, 실제 workflow runner는 code condition `C/F`에 연결되어 있습니다.
 
 ## Research Questions
 
@@ -132,26 +129,13 @@ Workflow 조건(`E`, `F`)에서 추가 저장되는 필드:
 
 보고서 본문도 `A/B/C/D/E/F` 전체 비교를 기준으로 구성하되, `A-D`에서 baseline weakness를 먼저 보여주고 `E/F`에서 workflow effect의 model-dependence를 해석하는 방향으로 잡습니다.
 
-## 현재 코드베이스와의 매핑
-
-현재 레포의 실행 라벨은 아직 legacy 상태라서, README label과 code condition은 아래처럼 대응합니다.
-
-| README label | Experiment meaning | Current code condition |
-| --- | --- | --- |
-| `A` | `0.6B` direct planner | `E` |
-| `B` | `1.7B` direct planner | `A` |
-| `C` | `1.7B` structured planner | `B` |
-| `D` | `14B-AWQ` direct planner | `D` |
-| `E` | `1.7B` LangGraph workflow planner | `C` |
-| `F` | `0.6B` LangGraph workflow planner | `F` |
-
 현재 `configs/models.yaml` 기본값은 아래처럼 되어 있습니다.
 
 - `tiny = Qwen/Qwen3-0.6B`
 - `small = Qwen/Qwen3-1.7B`
 - `strong = Qwen/Qwen3-14B-AWQ`
 
-즉 현재 코드도 이미 on-device 실험 설계에 맞춘 상태입니다.
+즉 현재 코드도 README와 동일한 실험 condition 라벨을 사용합니다.
 
 ## Working Environment
 
@@ -170,8 +154,7 @@ pip install -r requirements.txt
 
 ## 현재 기준 실행 명령
 
-코드 리팩터링 전까지는 기존 엔트리포인트를 그대로 사용합니다.  
-아래 스크립트 이름은 **README label이 아니라 current code condition 기준**입니다.
+아래 스크립트 이름은 README의 `A/B/C/D/E/F` condition label과 동일합니다.
 
 ```bash
 conda activate nlp
@@ -193,15 +176,6 @@ bash scripts/run_all.sh
 
 ## 현재 기준 평가 명령
 
-규칙 기반 평가:
-
-```bash
-conda activate nlp
-python src/evaluate_rule_based.py \
-  --outputs outputs/condition_a/results.jsonl \
-  --personas data/processed/personas_normalized.jsonl
-```
-
 LLM judge 평가:
 
 ```bash
@@ -211,7 +185,7 @@ python src/evaluate_llm_judge.py \
   --personas data/processed/personas_normalized.jsonl
 ```
 
-현재 LLM judge는 `1-10` 스케일을 사용하며, 비판적 rubric은 [prompts/judge_rubric.txt](/home/gon-mac/local/NLP-Proj/prompts/judge_rubric.txt)에, 관련 설정은 [configs/evaluation.yaml](/home/gon-mac/local/NLP-Proj/configs/evaluation.yaml)에 있습니다.
+현재 자동 평가는 `LLM judge`만 사용하며, `1-10` 스케일을 사용합니다. 비판적 rubric은 [prompts/judge_rubric.txt](/home/gon-mac/local/NLP-Proj/prompts/judge_rubric.txt)에, 관련 설정은 [configs/evaluation.yaml](/home/gon-mac/local/NLP-Proj/configs/evaluation.yaml)에 있습니다.
 
 ## 입력 데이터
 

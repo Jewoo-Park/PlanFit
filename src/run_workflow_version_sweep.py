@@ -18,9 +18,9 @@ from utils import load_jsonl, load_yaml, resolve_path, write_json
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 REPAIR_PROMPT_PATH = Path("backup/methods/01_repair_loop_core/refs/workflow_repair_planner.txt")
-SUMMARY_JSON_NAME = "c_version_summary.json"
-SUMMARY_CSV_NAME = "c_version_summary.csv"
-BEST_JSON_NAME = "best_c_version.json"
+SUMMARY_JSON_NAME = "e_version_summary.json"
+SUMMARY_CSV_NAME = "e_version_summary.csv"
+BEST_JSON_NAME = "best_e_version.json"
 
 
 def _ensure_parent(path: Path) -> None:
@@ -98,22 +98,6 @@ def _run_generation_and_evals(
     _run_command(
         [
             sys.executable,
-            "src/evaluate_rule_based.py",
-            "--outputs",
-            str(output_dir / "results.jsonl"),
-            "--personas",
-            personas_path,
-            "--evaluation-config",
-            evaluation_config,
-            "--output-path",
-            str(output_dir / "evaluation_rule_based.jsonl"),
-        ],
-        dry_run=dry_run,
-    )
-
-    _run_command(
-        [
-            sys.executable,
             "src/evaluate_llm_judge.py",
             "--outputs",
             str(output_dir / "results.jsonl"),
@@ -138,9 +122,8 @@ def _mean_or_none(values: Iterable[float]) -> float | None:
 
 
 def _summarize_output(version_label: str, version_config: Path, output_dir: Path) -> Dict[str, Any]:
-    rule_rows = load_jsonl(str(output_dir / "evaluation_rule_based.jsonl"))
     judge_rows = load_jsonl(str(output_dir / "evaluation_llm_judge.jsonl"))
-    if not rule_rows or not judge_rows:
+    if not judge_rows:
         raise FileNotFoundError(f"Missing evaluation outputs under {output_dir}")
 
     llm_metric_names = [
@@ -160,18 +143,13 @@ def _summarize_output(version_label: str, version_config: Path, output_dir: Path
         for metric in llm_metric_names
     }
 
-    rule_average = _mean_or_none(row.get("weighted_score") for row in rule_rows if row.get("weighted_score") is not None)
     return {
         "version": version_label,
         "generation_config": str(version_config),
         "output_dir": str(output_dir),
         "counts": {
             "generation": len(load_jsonl(str(output_dir / "results.jsonl"))),
-            "rule_based": len(rule_rows),
             "llm_judge": len(judge_rows),
-        },
-        "rule_based": {
-            "weighted_mean": rule_average,
         },
         "llm_judge": {
             "metric_means": llm_averages,
@@ -184,7 +162,6 @@ def _write_summary_files(output_root: Path, summaries: List[Dict[str, Any]]) -> 
         summaries,
         key=lambda item: (
             -(item["llm_judge"]["metric_means"]["overall"] or float("-inf")),
-            -(item["rule_based"]["weighted_mean"] or float("-inf")),
             item["version"],
         ),
     )
@@ -193,7 +170,7 @@ def _write_summary_files(output_root: Path, summaries: List[Dict[str, Any]]) -> 
     summary_payload = {
         "selection_rule": {
             "primary": "highest llm_judge.metric_means.overall",
-            "tie_breaker": "highest rule_based.weighted_mean",
+            "tie_breaker": "stable version label ordering",
         },
         "versions": summaries,
         "best_version": best["version"],
@@ -208,9 +185,7 @@ def _write_summary_files(output_root: Path, summaries: List[Dict[str, Any]]) -> 
         "generation_config",
         "output_dir",
         "generation_count",
-        "rule_based_count",
         "llm_judge_count",
-        "rule_weighted_mean",
         "llm_goal_alignment_mean",
         "llm_constraint_adherence_mean",
         "llm_safety_mean",
@@ -229,9 +204,7 @@ def _write_summary_files(output_root: Path, summaries: List[Dict[str, Any]]) -> 
                     "generation_config": item["generation_config"],
                     "output_dir": item["output_dir"],
                     "generation_count": item["counts"]["generation"],
-                    "rule_based_count": item["counts"]["rule_based"],
                     "llm_judge_count": item["counts"]["llm_judge"],
-                    "rule_weighted_mean": item["rule_based"]["weighted_mean"],
                     "llm_goal_alignment_mean": metrics["goal_alignment"],
                     "llm_constraint_adherence_mean": metrics["constraint_adherence"],
                     "llm_safety_mean": metrics["safety"],
@@ -246,16 +219,16 @@ def _write_summary_files(output_root: Path, summaries: List[Dict[str, Any]]) -> 
 def _derived_f_generation_config(
     *,
     base_generation_config: str,
-    best_c_generation_config: Path,
+    best_e_generation_config: Path,
     best_version_label: str,
     output_root: Path,
 ) -> Path:
     base_cfg = load_yaml(base_generation_config)
-    best_cfg = load_yaml(str(best_c_generation_config))
+    best_cfg = load_yaml(str(best_e_generation_config))
     derived_cfg = deepcopy(base_cfg)
 
-    best_c_workflow = deepcopy(best_cfg["conditions"]["C"].get("workflow", {}))
-    derived_cfg["conditions"]["F"]["workflow"] = best_c_workflow
+    best_e_workflow = deepcopy(best_cfg["conditions"]["E"].get("workflow", {}))
+    derived_cfg["conditions"]["F"]["workflow"] = best_e_workflow
     derived_cfg["conditions"]["F"]["system_type"] = (
         f"{derived_cfg['conditions']['F'].get('system_type', 'langgraph_workflow_planner')}_best_{best_version_label}"
     )
@@ -265,7 +238,7 @@ def _derived_f_generation_config(
     return target
 
 
-def run_c_sweep(args: argparse.Namespace) -> None:
+def run_e_sweep(args: argparse.Namespace) -> None:
     output_root = resolve_path(args.output_root)
     output_root.mkdir(parents=True, exist_ok=True)
     prompts_with_repair = _ensure_prompts_with_repair(
@@ -275,10 +248,10 @@ def run_c_sweep(args: argparse.Namespace) -> None:
 
     summaries: List[Dict[str, Any]] = []
     for config_path in _version_configs(args.version_glob):
-        version_label = config_path.stem.replace("generation_c_tune_", "")
-        output_dir = output_root / f"c_{version_label}"
+        version_label = config_path.stem.replace("generation_e_tune_", "")
+        output_dir = output_root / f"e_{version_label}"
         _run_generation_and_evals(
-            condition="C",
+            condition="E",
             generation_config=config_path,
             prompts_config=prompts_with_repair,
             models_config=args.models_config,
@@ -296,12 +269,10 @@ def run_c_sweep(args: argparse.Namespace) -> None:
 
     best = _write_summary_files(output_root, summaries)
     print(
-        "Best C version:",
+        "Best E version:",
         best["version"],
         "llm_overall=",
         best["llm_judge"]["metric_means"]["overall"],
-        "rule_weighted=",
-        best["rule_based"]["weighted_mean"],
     )
 
 
@@ -313,14 +284,14 @@ def run_best_f(args: argparse.Namespace) -> None:
         output_root=output_root,
     )
 
-    if args.best_c_config:
-        best_config_path = resolve_path(args.best_c_config)
-        best_version_label = best_config_path.stem.replace("generation_c_tune_", "")
+    if args.best_e_config:
+        best_config_path = resolve_path(args.best_e_config)
+        best_version_label = best_config_path.stem.replace("generation_e_tune_", "")
     else:
         best_summary_path = output_root / BEST_JSON_NAME
         if not best_summary_path.exists():
             raise FileNotFoundError(
-                f"Missing {best_summary_path}. Run the C sweep first or pass --best-c-config."
+                f"Missing {best_summary_path}. Run the E sweep first or pass --best-e-config."
             )
         best_summary = json.loads(best_summary_path.read_text(encoding="utf-8"))
         best_config_path = resolve_path(best_summary["generation_config"])
@@ -328,7 +299,7 @@ def run_best_f(args: argparse.Namespace) -> None:
 
     derived_config = _derived_f_generation_config(
         base_generation_config=args.base_generation_config,
-        best_c_generation_config=best_config_path,
+        best_e_generation_config=best_config_path,
         best_version_label=best_version_label,
         output_root=output_root,
     )
@@ -349,18 +320,17 @@ def run_best_f(args: argparse.Namespace) -> None:
         return
 
     summary = {
-        "source_best_c_version": best_version_label,
+        "source_best_e_version": best_version_label,
         "derived_generation_config": str(derived_config),
         "output_dir": str(output_dir),
-        "rule_based": _summarize_output(f"f_from_best_{best_version_label}", derived_config, output_dir)["rule_based"],
         "llm_judge": _summarize_output(f"f_from_best_{best_version_label}", derived_config, output_dir)["llm_judge"],
     }
     write_json(output_root / f"f_from_best_{best_version_label}_summary.json", summary)
-    print(f"Finished F rerun with best C version {best_version_label}")
+    print(f"Finished F rerun with best E version {best_version_label}")
 
 
 def run_all(args: argparse.Namespace) -> None:
-    run_c_sweep(args)
+    run_e_sweep(args)
     if args.dry_run:
         return
     run_best_f(args)
@@ -368,7 +338,7 @@ def run_all(args: argparse.Namespace) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run C workflow-version sweeps and rerun F with the best C workflow knobs."
+        description="Run E workflow-version sweeps and rerun F with the best E workflow knobs."
     )
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--personas", default="data/processed/personas_normalized.jsonl")
@@ -378,8 +348,8 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--base-generation-config", default="configs/generation.yaml")
     common.add_argument(
         "--version-glob",
-        default="backup/version_configs/generation_c_tune_v*.yaml",
-        help="Glob for C version configs.",
+        default="backup/version_configs/generation_e_tune_v*.yaml",
+        help="Glob for E version configs.",
     )
     common.add_argument(
         "--output-root",
@@ -387,9 +357,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Dedicated output root for sweep artifacts.",
     )
     common.add_argument(
-        "--best-c-config",
+        "--best-e-config",
         default=None,
-        help="Optional explicit C version config to use when running F.",
+        help="Optional explicit E version config to use when running F.",
     )
     common.add_argument(
         "--dry-run",
@@ -398,17 +368,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
-    subparsers.add_parser("run-c-sweep", parents=[common], help="Run C v1-v4 generation and evaluation.")
-    subparsers.add_parser("run-best-f", parents=[common], help="Run F using the best C workflow knobs.")
-    subparsers.add_parser("run-all", parents=[common], help="Run the C sweep, then run F from the selected best C version.")
+    subparsers.add_parser("run-e-sweep", parents=[common], help="Run E v1-v4 generation and evaluation.")
+    subparsers.add_parser("run-best-f", parents=[common], help="Run F using the best E workflow knobs.")
+    subparsers.add_parser("run-all", parents=[common], help="Run the E sweep, then run F from the selected best E version.")
     return parser
 
 
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
-    if args.command == "run-c-sweep":
-        run_c_sweep(args)
+    if args.command == "run-e-sweep":
+        run_e_sweep(args)
     elif args.command == "run-best-f":
         run_best_f(args)
     else:
