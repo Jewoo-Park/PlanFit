@@ -192,7 +192,12 @@ Input Format
   "dislikes": "..."
 }
 ```
-Main Message
+## Results
+
+![PlanFit Framework](./assets/Figure2.png)
+
+
+## Main Message
 
 Multi-objective planning is particularly weak in small LLMs, and the effectiveness of structured prompting and workflow design is strongly dependent on model capacity.
 
