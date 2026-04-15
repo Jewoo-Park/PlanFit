@@ -1,6 +1,6 @@
 # Workflow Version Sweep
 
-This sweep keeps the existing `A-F` flow intact and writes all new artifacts under `outputs/version_sweeps/`.
+This sweep keeps the existing `A-H` condition layout intact and writes all new artifacts under `outputs/version_sweeps/`.
 
 ## What it does
 

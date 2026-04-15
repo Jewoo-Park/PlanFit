@@ -4,7 +4,7 @@
 
 이번 과제의 핵심은 "workflow를 쓰면 다 좋아진다"를 보이는 것이 아니라, **멀티오브젝티브 계획 생성은 소형 모델에서 특히 취약하며, 개선 효과 또한 모델 capacity에 따라 다르게 나타난다**는 점을 검증하는 것입니다.
 
-## 현재 문서의 기준
+## 문서 기준
 
 이 README와 실제 코드 실행 라벨은 같은 condition 순서를 사용합니다.
 
@@ -14,12 +14,13 @@
 - `D`: `Qwen3-14B-AWQ` direct
 - `E`: `Qwen3-1.7B` workflow
 - `F`: `Qwen3-0.6B` workflow
+- `G`: `Qwen3-0.6B` structured ablation
+- `H`: `Qwen3-14B-AWQ` structured ablation
 
 ## Research Questions
 
-1. personalized hybrid training plan generation 같은 multi-objective task에서 `Qwen3-0.6B`, `Qwen3-1.7B`, `Qwen3-14B-AWQ`는 어떤 failure gap을 보이는가?
-2. `Qwen3-1.7B direct`에 structured prompting을 더하면, small-model failure를 어느 정도 완화할 수 있는가?
-3. 동일한 workflow decomposition이 `Qwen3-1.7B`와 `Qwen3-0.6B`에 모두 도움이 되는가, 아니면 capacity limit 때문에 효과가 갈리는가?
+1. personalized hybrid training plan generation 같은 multi-objective task에서 planning performance는 **model size**와 **prompting strategy** (`direct` vs. `structured`)에 따라 어떻게 달라지는가?
+2. **workflow-based system design**은 planning performance를 개선할 수 있는가? 특히 compact model에서 그 효과가 더 크게 나타나는가?
 
 ## 고정할 실험 범위
 
@@ -32,7 +33,7 @@
 
 ## 메인 실험 조건
 
-이번 과제에서는 workflow 조건을 `E/F`로 두고, `A-D`를 baseline block으로 해석합니다.
+이번 과제에서는 workflow 조건을 `E/F`로 두고, `A-D`를 main comparison block으로 해석합니다.
 
 | Condition | Model | System | Purpose |
 | --- | --- | --- | --- |
@@ -43,7 +44,14 @@
 | `E` | `Qwen3-1.7B` | LangGraph workflow planner | workflow intervention on small model |
 | `F` | `Qwen3-0.6B` | LangGraph workflow planner | 동일 workflow의 tiny-model 한계 확인 |
 
-`0.6B structured`는 현재 메인 비교축에서 제외하고, 이 README는 `A -> B -> C -> D`의 baseline 흐름 뒤에 `E/F` workflow 조건을 붙여 읽는 구성으로 정리합니다.
+추가 structured ablation 조건은 아래처럼 별도로 둡니다.
+
+| Condition | Model | System | Purpose |
+| --- | --- | --- | --- |
+| `G` | `Qwen3-0.6B` | Structured planner | tiny-model structured ablation |
+| `H` | `Qwen3-14B-AWQ` | Structured planner | strong-model structured ablation |
+
+즉 메인 읽기 순서는 `A -> B -> C -> D -> E -> F`로 유지하고, `G/H`는 capacity 양 끝단에서 `direct` 대비 `structured` prompting 효과를 확인하는 ablation block으로 해석합니다.
 
 ## Workflow 정의
 
@@ -61,39 +69,16 @@
 
 이 구조를 통해 다음 비교를 명확하게 만듭니다.
 
-- `A` vs `B`: `0.6B`와 `1.7B` direct 사이의 capacity gap은 얼마나 큰가
-- `C` vs `B`: structured prompt만으로도 `1.7B` failure를 줄일 수 있는가
-- `D` vs `A/B/C`: stronger reference 대비 small-model weakness는 어디서 나타나는가
-- `E` vs `B/C/D`: `1.7B + workflow`가 small-model 한계를 얼마나 회복할 수 있는가
-- `F` vs `A`: 같은 workflow가 `0.6B`에는 도움이 되는가, 아니면 한계를 더 드러내는가
+- `A` vs `B` vs `D`: `0.6B`, `1.7B`, `14B-AWQ` direct 사이에서 model size에 따른 planning gap은 어떻게 나타나는가
+- `A` vs `G`, `B` vs `C`, `D` vs `H`: 각 model size에서 `direct` 대비 `structured` prompting은 어떤 변화를 만드는가
+- `E` vs `B/C`: `1.7B`에서 workflow-based system design은 direct/structured 대비 추가 개선을 주는가
+- `F` vs `A/G`: `0.6B` 같은 compact model에서 workflow-based system design은 direct/structured 대비 더 큰 효과를 주는가
+- `D/H` vs `A/B/C/E/F/G`: stronger reference 대비 compact model의 planning weakness와 intervention 효과는 어디서 갈리는가
 
-## 허점 분석 프레임
-
-현재 분석은 아래 축을 기준으로 진행합니다.
-
-| 현재 분석 축 | 설명 |
-| --- | --- |
-| small model 대표 실패 유형 | `A/B/C/D`에서 나타나는 multi-objective planning failure 분포 |
-| workflow가 줄인 오류 | `E/F workflow`가 줄인 오류 |
-| workflow 이후에도 남는 오류 | workflow 이후에도 남거나 더 악화되는 오류 |
-| strong direct 안정성 | `D` (`14B-AWQ direct`)가 local reference로 얼마나 안정적인가 |
-| workflow trace 반영 여부 | `E/F`의 intermediate state가 제약을 제대로 반영하는가 |
-
-권장 failure tagging은 아래와 같습니다.
-
-| Failure type | Status label | Workflow-specific field |
-| --- | --- | --- |
-| Constraint violation | `fixed / partly fixed / not fixed` | `caught_by_node` |
-| Safety issue | `fixed / partly fixed / not fixed` | `caught_by_node` |
-| Goal misunderstanding | `fixed / not fixed` | `caught_by_node` |
-| Trade-off failure | `fixed / partly fixed / not fixed` | `caught_by_node` |
-| Long-term coherence issue | `fixed / not fixed` | `caught_by_node` |
-
-`caught_by_node`는 `extractor / safety checker / constraint checker / trade-off checker / not caught`처럼 기록합니다.
 
 ## 추가 연구용 메타데이터
 
-현재 `results.jsonl`의 `metadata`에는 아래 필드가 저장됩니다.
+`results.jsonl`의 `metadata`에는 아래 필드가 저장됩니다.
 
 공통 저장 필드:
 
@@ -125,17 +110,19 @@ Workflow 조건(`E`, `F`)에서 추가 저장되는 필드:
 
 ### Experiment
 
-- Full result block: `10 personas x A/B/C/D/E/F = 60 outputs`
+- Main result block: `10 personas x A/B/C/D/E/F = 60 outputs`
+- Structured ablation block: `10 personas x G/H = 20 outputs`
+- Full result block with ablations: `80 outputs`
 
-보고서 본문도 `A/B/C/D/E/F` 전체 비교를 기준으로 구성하되, `A-D`에서 baseline weakness를 먼저 보여주고 `E/F`에서 workflow effect의 model-dependence를 해석하는 방향으로 잡습니다.
+보고서 본문은 `model size`, `prompting strategy` (`direct` vs. `structured`), 그리고 `workflow-based system design`의 효과를 함께 읽을 수 있도록 `A/B/C/D/E/F` main comparison을 기준으로 구성하고, `G/H`는 structured prompting의 capacity-boundary ablation으로 별도 해석하는 방향으로 잡습니다.
 
-현재 `configs/models.yaml` 기본값은 아래처럼 되어 있습니다.
+`configs/models.yaml`의 기본값은 아래와 같습니다.
 
 - `tiny = Qwen/Qwen3-0.6B`
 - `small = Qwen/Qwen3-1.7B`
 - `strong = Qwen/Qwen3-14B-AWQ`
 
-즉 현재 코드도 README와 동일한 실험 condition 라벨을 사용합니다.
+즉 코드도 README와 동일한 실험 condition 라벨을 사용합니다.
 
 ## Working Environment
 
@@ -152,9 +139,9 @@ conda activate nlp
 pip install -r requirements.txt
 ```
 
-## 현재 기준 실행 명령
+## 실행 명령
 
-아래 스크립트 이름은 README의 `A/B/C/D/E/F` condition label과 동일합니다.
+아래 스크립트 이름은 README의 `A/B/C/D/E/F/G/H` condition label과 동일합니다.
 
 ```bash
 conda activate nlp
@@ -165,6 +152,8 @@ bash scripts/run_condition_c.sh
 bash scripts/run_condition_d.sh
 bash scripts/run_condition_e.sh
 bash scripts/run_condition_f.sh
+bash scripts/run_condition_g.sh
+bash scripts/run_condition_h.sh
 ```
 
 전체 실행:
@@ -174,7 +163,9 @@ conda activate nlp
 bash scripts/run_all.sh
 ```
 
-## 현재 기준 평가 명령
+`run_all.sh`는 main comparison block인 `A-F`만 실행합니다. `G/H` structured ablation은 필요할 때 개별 실행합니다.
+
+## 평가 명령
 
 LLM judge 평가:
 
@@ -185,7 +176,7 @@ python src/evaluate_llm_judge.py \
   --personas data/processed/personas_normalized.jsonl
 ```
 
-현재 자동 평가는 `LLM judge`만 사용하며, `1-10` 스케일을 사용합니다. 비판적 rubric은 [prompts/judge_rubric.txt](/home/gon-mac/local/NLP-Proj/prompts/judge_rubric.txt)에, 관련 설정은 [configs/evaluation.yaml](/home/gon-mac/local/NLP-Proj/configs/evaluation.yaml)에 있습니다.
+자동 평가는 `LLM judge`만 사용하며, `1-10` 스케일을 사용합니다. 비판적 rubric은 [prompts/judge_rubric.txt]에, 관련 설정은 [configs/evaluation.yaml]에 있습니다.
 
 ## 입력 데이터
 
@@ -212,4 +203,4 @@ python src/evaluate_llm_judge.py \
 
 > multi-objective planning은 소형 LLM에서 특히 취약하며, structured prompting과 workflow의 효과도 모델 capacity에 강하게 의존한다.
 
-**small-model limitation을 드러낸 뒤, 시스템 설계가 그 한계를 어디까지 보완할 수 있고 어디서는 실패하는지 알 수 있다**
+**model size와 prompting strategy에 따른 planning 차이를 먼저 드러낸 뒤, workflow-based system design이 특히 compact model에서 그 한계를 어디까지 보완할 수 있는지 확인한다**

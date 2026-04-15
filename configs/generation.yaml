@@ -34,3 +34,13 @@ conditions:
     workflow_model_alias: "tiny"
     runner: "workflow"
     system_type: "langgraph_workflow_planner"
+  G:
+    model_alias: "tiny"
+    prompt_key: "structured"
+    runner: "direct"
+    system_type: "structured_planner"
+  H:
+    model_alias: "strong"
+    prompt_key: "structured"
+    runner: "direct"
+    system_type: "structured_planner"
