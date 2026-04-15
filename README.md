@@ -1,101 +1,110 @@
 # PlanFit
 
-`PlanFit`은 4주 personalized hybrid training plan generation을 대상으로, **multi-objective planning task에서 소형 LLM의 한계를 드러내고**, structured prompting과 workflow 설계가 그 한계를 어디까지 보완할 수 있는지 평가하는 실험 레포입니다.
+`PlanFit` is an experimental repository focused on **4-week personalized hybrid training plan generation**, aiming to **expose the limitations of small LLMs in multi-objective planning tasks** and evaluate how much structured prompting and workflow design can mitigate those limitations.
 
-이번 과제의 핵심은 "workflow를 쓰면 다 좋아진다"를 보이는 것이 아니라, **멀티오브젝티브 계획 생성은 소형 모델에서 특히 취약하며, 개선 효과 또한 모델 capacity에 따라 다르게 나타난다**는 점을 검증하는 것입니다.
+The core objective of this project is not to show that “workflow always improves performance,” but rather to verify that **multi-objective planning is particularly challenging for small models, and that the effectiveness of improvements varies depending on model capacity**.
 
-## 문서 기준
+---
 
-이 README와 실제 코드 실행 라벨은 같은 condition 순서를 사용합니다.
+## Documentation Convention
 
-- `A`: `Qwen3-0.6B` direct
-- `B`: `Qwen3-1.7B` direct
-- `C`: `Qwen3-1.7B` structured
-- `D`: `Qwen3-14B-AWQ` direct
-- `E`: `Qwen3-1.7B` workflow
-- `F`: `Qwen3-0.6B` workflow
-- `G`: `Qwen3-0.6B` structured ablation
-- `H`: `Qwen3-14B-AWQ` structured ablation
+This README and the actual execution labels follow the same condition ordering:
+
+- `A`: `Qwen3-0.6B` direct  
+- `B`: `Qwen3-1.7B` direct  
+- `C`: `Qwen3-1.7B` structured  
+- `D`: `Qwen3-14B-AWQ` direct  
+- `E`: `Qwen3-1.7B` workflow  
+- `F`: `Qwen3-0.6B` workflow  
+- `G`: `Qwen3-0.6B` structured ablation  
+- `H`: `Qwen3-14B-AWQ` structured ablation  
 
 ----- extra work -----
-- `I`: `Qwen3-1.7B` refined workflow
-- `J`: `Qwen3-0.6B` refined workflow
+- `I`: `Qwen3-1.7B` refined workflow  
+- `J`: `Qwen3-0.6B` refined workflow  
+
+---
 
 ## Research Questions
 
-1. personalized hybrid training plan generation 같은 multi-objective task에서 planning performance는 **model size**와 **prompting strategy** (`direct` vs. `structured`)에 따라 어떻게 달라지는가?
-2. **workflow-based system design**은 planning performance를 개선할 수 있는가? 특히 compact model에서 그 효과가 더 크게 나타나는가?
+1. In multi-objective tasks such as personalized hybrid training plan generation, how does planning performance vary depending on **model size** and **prompting strategy** (`direct` vs. `structured`)?
+2. Can **workflow-based system design** improve planning performance? In particular, is the effect more pronounced in compact models?
 
-## 고정할 실험 범위
+---
 
-- Task: 4주 personalized hybrid training plan generation
-- Core rubric: `Constraint`, `Safety`, `Goal alignment`, `Trade-off`, `Coherence`
-- Output schema: `Week / Day / Focus / Session / Duration / Intensity / Reason`
-- Evaluation protocol: blind human scoring + quantitative/qualitative analysis 분리
+## Fixed Experimental Scope
 
-즉, rubric은 유지하고 model/system condition만 바꾸는 방향으로 갑니다.
+- Task: 4-week personalized hybrid training plan generation  
+- Core rubric: `Constraint`, `Safety`, `Goal alignment`, `Trade-off`, `Coherence`  
+- Output schema: `Week / Day / Focus / Session / Duration / Intensity / Reason`  
+- Evaluation protocol: blind human scoring + separated quantitative/qualitative analysis  
 
-## 메인 실험 조건
+---
 
-이번 과제에서는 workflow 조건을 `E/F`로 두고, `A-D`를 main comparison block으로 해석합니다.
+## Main Experimental Conditions
 
-| Condition | Model | System | Purpose |
-| --- | --- | --- | --- |
-| `A` | `Qwen3-0.6B` | Direct planner | 극소형 모델 direct baseline |
-| `B` | `Qwen3-1.7B` | Direct planner | 소형 모델 direct baseline |
-| `C` | `Qwen3-1.7B` | Structured planner | prompt structuring baseline |
-| `D` | `Qwen3-14B-AWQ` | Direct planner | local stronger reference |
-| `E` | `Qwen3-1.7B` | LangGraph workflow planner | workflow intervention on small model |
-| `F` | `Qwen3-0.6B` | LangGraph workflow planner | 동일 workflow의 tiny-model 한계 확인 |
-
-추가 structured ablation 조건은 아래처럼 별도로 둡니다.
+In this study, workflow conditions are defined as `E/F`, and `A–D` form the main comparison block.
 
 | Condition | Model | System | Purpose |
 | --- | --- | --- | --- |
-| `G` | `Qwen3-0.6B` | Structured planner | tiny-model structured ablation |
-| `H` | `Qwen3-14B-AWQ` | Structured planner | strong-model structured ablation |
+| `A` | `Qwen3-0.6B` | Direct planner | Tiny model direct baseline |
+| `B` | `Qwen3-1.7B` | Direct planner | Small model direct baseline |
+| `C` | `Qwen3-1.7B` | Structured planner | Prompt structuring baseline |
+| `D` | `Qwen3-14B-AWQ` | Direct planner | Strong local reference |
+| `E` | `Qwen3-1.7B` | LangGraph workflow planner | Workflow intervention on small model |
+| `F` | `Qwen3-0.6B` | LangGraph workflow planner | Evaluating workflow limits on tiny model |
 
-즉 메인 읽기 순서는 `A -> B -> C -> D -> E -> F`로 유지하고, `G/H`는 capacity 양 끝단에서 `direct` 대비 `structured` prompting 효과를 확인하는 ablation block으로 해석합니다.
+---
 
-## 과제 외 추가 실험
-
-`I/J`는 과제 본문 비교축과 분리된 추가 실험으로 두고, workflow tuning 과정에서 최종적으로 남긴 refined workflow 설정을 사용합니다.
+## Structured Ablation Conditions
 
 | Condition | Model | System | Purpose |
 | --- | --- | --- | --- |
-| `I` | `Qwen3-1.7B` | LangGraph refined workflow planner | `1.7B`에서 refined workflow 설정의 효과 확인 |
-| `J` | `Qwen3-0.6B` | LangGraph refined workflow planner | `0.6B`에서 refined workflow 설정의 효과 확인 |
+| `G` | `Qwen3-0.6B` | Structured planner | Tiny-model structured ablation |
+| `H` | `Qwen3-14B-AWQ` | Structured planner | Strong-model structured ablation |
 
-`I/J`는 version sweep 비교가 아니라, refined workflow를 고정한 독립 실행 조건으로 해석합니다.
+Main reading order:
 
-## Workflow 정의
+**A → B → C → D → E → F**
 
-`E/F`의 핵심은 **같은 모델을 유지한 채 시스템 설계만 바꾸었을 때 어떤 모델에서는 개선이 가능하고 어떤 모델에서는 한계가 더 분명해지는지**를 보는 것입니다.
+---
 
-권장 workflow는 아래 순서를 따릅니다.
+## Additional Experiments
 
-1. `profile extractor`
-2. `goal prioritizer`
-3. `draft planner`
-4. `safety checker`
-5. `constraint checker`
-6. `trade-off checker`
-7. `final integrator / formatter`
+| Condition | Model | System | Purpose |
+| --- | --- | --- | --- |
+| `I` | `Qwen3-1.7B` | LangGraph refined workflow planner | Effect of refined workflow on 1.7B |
+| `J` | `Qwen3-0.6B` | LangGraph refined workflow planner | Effect of refined workflow on 0.6B |
 
-이 구조를 통해 다음 비교를 명확하게 만듭니다.
+---
 
-- `A` vs `B` vs `D`: `0.6B`, `1.7B`, `14B-AWQ` direct 사이에서 model size에 따른 planning gap은 어떻게 나타나는가
-- `A` vs `G`, `B` vs `C`, `D` vs `H`: 각 model size에서 `direct` 대비 `structured` prompting은 어떤 변화를 만드는가
-- `E` vs `B/C`: `1.7B`에서 workflow-based system design은 direct/structured 대비 추가 개선을 주는가
-- `F` vs `A/G`: `0.6B` 같은 compact model에서 workflow-based system design은 direct/structured 대비 더 큰 효과를 주는가
-- `D/H` vs `A/B/C/E/F/G`: stronger reference 대비 compact model의 planning weakness와 intervention 효과는 어디서 갈리는가
+## Workflow Definition
 
+Recommended workflow:
 
-## 추가 연구용 메타데이터
+1. `profile extractor`  
+2. `goal prioritizer`  
+3. `draft planner`  
+4. `safety checker`  
+5. `constraint checker`  
+6. `trade-off checker`  
+7. `final integrator / formatter`  
 
-`results.jsonl`의 `metadata`에는 아래 필드가 저장됩니다.
+---
 
-공통 저장 필드:
+## Key Comparisons
+
+- `A` vs `B` vs `D`: Model size scaling  
+- `A` vs `G`, `B` vs `C`, `D` vs `H`: Structured vs direct prompting  
+- `E` vs `B/C`: Workflow effect on 1.7B  
+- `F` vs `A/G`: Workflow effect on 0.6B  
+- `D/H` vs others: Gap between strong and compact models  
+
+---
+
+## Metadata
+
+Common fields:
 
 - `prompt_version`
 - `temperature`
@@ -106,7 +115,7 @@
 - `prompt_files`
 - `system_type`
 
-Workflow 조건(`E`, `F`)에서 추가 저장되는 필드:
+Workflow-specific fields:
 
 - `model_calls`
 - `checker_fail_count`
@@ -121,40 +130,30 @@ Workflow 조건(`E`, `F`)에서 추가 저장되는 필드:
 - `constraint_review`
 - `tradeoff_review`
 
-Refined workflow 조건(`I`, `J`)도 동일한 workflow 메타데이터 필드를 저장합니다.
+---
 
+## Experiment Scale
 
+- Main: `10 personas × A–F = 60`
+- Ablation: `10 personas × G/H = 20`
+- Refined: `10 personas × I/J = 20`
+- Total: `100 outputs`
 
-### Experiment
+---
 
-- Main result block: `10 personas x A/B/C/D/E/F = 60 outputs`
-- Structured ablation block: `10 personas x G/H = 20 outputs`
-- Additional refined workflow block: `10 personas x I/J = 20 outputs`
-- Full result block with ablations and extra experiments: `100 outputs`
+## Model Config
 
-보고서 본문은 `model size`, `prompting strategy` (`direct` vs. `structured`), 그리고 `workflow-based system design`의 효과를 함께 읽을 수 있도록 `A/B/C/D/E/F` main comparison을 기준으로 구성하고, `G/H`는 structured prompting의 capacity-boundary ablation으로, `I/J`는 과제 외 추가 실험으로 별도 해석하는 방향으로 잡습니다.
+- `tiny = Qwen/Qwen3-0.6B`  
+- `small = Qwen/Qwen3-1.7B`  
+- `strong = Qwen/Qwen3-14B-AWQ`  
 
-`configs/models.yaml`의 기본값은 아래와 같습니다.
+---
 
-- `tiny = Qwen/Qwen3-0.6B`
-- `small = Qwen/Qwen3-1.7B`
-- `strong = Qwen/Qwen3-14B-AWQ`
-
-즉 코드도 README와 동일한 실험 condition 라벨을 사용합니다.
-
-## Working Environment
-
-의존성 설치:
+## Installation
 
 ```bash
 pip install -r requirements.txt
-```
-
-## 실행 명령
-
-아래 스크립트 이름은 README의 `A/B/C/D/E/F/G/H/I/J` condition label과 동일합니다.
-
-```bash
+Run
 python src/load_personas.py
 bash scripts/run_condition_a.sh
 bash scripts/run_condition_b.sh
@@ -166,33 +165,17 @@ bash scripts/run_condition_g.sh
 bash scripts/run_condition_h.sh
 bash scripts/run_condition_i.sh
 bash scripts/run_condition_j.sh
-```
 
-전체 실행:
+Run all:
 
-```bash
 bash scripts/run_all.sh
-```
-
-`run_all.sh`는 main comparison block인 `A-F`만 실행합니다.
-
-## 평가 명령
-
-LLM judge 평가:
-
-```bash
+Evaluation
 python src/evaluate_llm_judge.py \
   --outputs outputs/condition_a/results.jsonl \
   --personas data/processed/personas_normalized.jsonl
-```
-
-자동 평가는 `LLM judge`만 사용하며, `1-10` 스케일을 사용합니다. 비판적 rubric은 [prompts/judge_rubric.txt]에, 관련 설정은 [configs/evaluation.yaml]에 있습니다.
-
-## 입력 데이터
-
-기본 입력 파일은 `data/raw/personas.jsonl`이며, 한 줄당 한 개의 JSON 객체를 사용합니다. 최소 필드는 아래와 같습니다.
-
-```json
+LLM judge only
+Score: 1–10
+Input Format
 {
   "id": "P1",
   "name": "Junsu",
@@ -205,12 +188,8 @@ python src/evaluate_llm_judge.py \
   "preferences": "...",
   "dislikes": "..."
 }
-```
+Main Message
 
-추가로 평가용 메모(`must_reflect_constraints`, `dangerous_plan_examples`, `major_deduction_points`)를 함께 둘 수 있습니다.
+Multi-objective planning is particularly weak in small LLMs, and the effectiveness of structured prompting and workflow design is strongly dependent on model capacity.
 
-## 메인 메시지
-
-> multi-objective planning은 소형 LLM에서 특히 취약하며, structured prompting과 workflow의 효과도 모델 capacity에 강하게 의존한다.
-
-**model size와 prompting strategy에 따른 planning 차이를 먼저 드러낸 뒤, workflow-based system design이 특히 compact model에서 그 한계를 어디까지 보완할 수 있는지 확인한다**
+The study first exposes planning differences across model size and prompting strategy, and then evaluates how much workflow-based system design can compensate for these limitations, especially in compact models.
