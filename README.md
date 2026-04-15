@@ -1,19 +1,28 @@
 # PlanFit
 
-`PlanFit`은 4주 personalized hybrid training plan generation을 대상으로, 온디바이스급 소형 모델에 workflow 설계를 얹었을 때 planning quality의 격차를 얼마나 줄일 수 있는지 평가하는 실험 레포입니다.
+`PlanFit`은 4주 personalized hybrid training plan generation을 대상으로, **multi-objective planning task에서 소형 LLM의 한계를 드러내고**, structured prompting과 workflow 설계가 그 한계를 어디까지 보완할 수 있는지 평가하는 실험 레포입니다.
 
-이번 리스코프의 핵심 질문은 단순히 "작은 모델도 되나?"가 아니라, "on-device small model의 failure mode를 workflow가 얼마나 줄이고 local stronger reference와의 gap을 얼마나 회복하는가?"입니다.
+이번 과제의 핵심은 "workflow를 쓰면 다 좋아진다"를 보이는 것이 아니라, **멀티오브젝티브 계획 생성은 소형 모델에서 특히 취약하며, 개선 효과 또한 모델 capacity에 따라 다르게 나타난다**는 점을 검증하는 것입니다.
 
 ## 현재 문서의 기준
 
-이 README는 `Plan.md`에 정리된 **목표 실험 설계**를 기준으로 작성했습니다.  
-현재 코드는 `A/B/C/D/E/F`까지 실행 가능하며, `C/F`는 `LangGraph` 기반 workflow planner로 연결되어 있습니다.
+이 README는 **과제 보고서용 condition label**을 기준으로 실험을 설명합니다.  
+README에서는 `A/B/C/D/E/F`를 아래 순서로 사용합니다.
+
+- `A`: `Qwen3-0.6B` direct
+- `B`: `Qwen3-1.7B` direct
+- `C`: `Qwen3-1.7B` structured
+- `D`: `Qwen3-14B-AWQ` direct
+- `E`: `Qwen3-1.7B` workflow
+- `F`: `Qwen3-0.6B` workflow
+
+다만 현재 코드 실행 이름은 아직 legacy mapping을 유지하며, 실제 workflow runner는 code condition `C/F`에 연결되어 있습니다.
 
 ## Research Questions
 
-1. Qwen3-1.7B 같은 on-device small model에 structured prompting과 workflow decomposition을 적용하면, direct prompting 대비 planning failure를 줄일 수 있는가?
-2. `1.7B + workflow`는 local reference인 `Qwen3-8B-AWQ direct`와의 gap을 얼마나 줄일 수 있는가?
-3. 이 workflow 효과는 더 작은 `Qwen3-0.6B`에서도 유지되는가, 아니면 capacity limit 때문에 빠르게 무너지는가?
+1. personalized hybrid training plan generation 같은 multi-objective task에서 `Qwen3-0.6B`, `Qwen3-1.7B`, `Qwen3-14B-AWQ`는 어떤 failure gap을 보이는가?
+2. `Qwen3-1.7B direct`에 structured prompting을 더하면, small-model failure를 어느 정도 완화할 수 있는가?
+3. 동일한 workflow decomposition이 `Qwen3-1.7B`와 `Qwen3-0.6B`에 모두 도움이 되는가, 아니면 capacity limit 때문에 효과가 갈리는가?
 
 ## 고정할 실험 범위
 
@@ -27,27 +36,22 @@
 
 ## 메인 실험 조건
 
-### Main conditions
-
-| Condition | Model | System | Role |
-| --- | --- | --- | --- |
-| `A'` | `Qwen3-1.7B` | Direct planner | on-device small baseline |
-| `B'` | `Qwen3-1.7B` | Structured planner | prompt structuring 효과 확인 |
-| `C'` | `Qwen3-1.7B` | LangGraph workflow planner | 핵심 제안 조건 |
-| `D'` | `Qwen3-8B-AWQ` | Direct planner | local stronger reference |
-
-### Ablation conditions
+이번 과제에서는 workflow 조건을 `E/F`로 두고, `A-D`를 baseline block으로 해석합니다.
 
 | Condition | Model | System | Purpose |
 | --- | --- | --- | --- |
-| `E` | `Qwen3-0.6B` | Direct planner | 가장 작은 on-device baseline |
-| `F` | `Qwen3-0.6B` | LangGraph workflow planner | 극소형 모델에서도 workflow가 먹히는지 확인 |
+| `A` | `Qwen3-0.6B` | Direct planner | 극소형 모델 direct baseline |
+| `B` | `Qwen3-1.7B` | Direct planner | 소형 모델 direct baseline |
+| `C` | `Qwen3-1.7B` | Structured planner | prompt structuring baseline |
+| `D` | `Qwen3-14B-AWQ` | Direct planner | local stronger reference |
+| `E` | `Qwen3-1.7B` | LangGraph workflow planner | workflow intervention on small model |
+| `F` | `Qwen3-0.6B` | LangGraph workflow planner | 동일 workflow의 tiny-model 한계 확인 |
 
-`0.6B structured`는 선택적 조건으로 남겨 두고, 우선은 `E/F`만으로 ablation을 구성합니다.
+`0.6B structured`는 현재 메인 비교축에서 제외하고, 이 README는 `A -> B -> C -> D`의 baseline 흐름 뒤에 `E/F` workflow 조건을 붙여 읽는 구성으로 정리합니다.
 
 ## Workflow 정의
 
-`C'`의 핵심은 "멀티에이전트를 그냥 써본다"가 아니라, **같은 1.7B를 유지한 채 시스템 설계만 바꾸는 것**입니다.
+`E/F`의 핵심은 "멀티에이전트를 그냥 써본다"가 아니라, **같은 모델을 유지한 채 시스템 설계만 바꾸었을 때 어떤 모델에서는 개선이 가능하고 어떤 모델에서는 한계가 더 분명해지는지**를 보는 것입니다.
 
 권장 workflow는 아래 순서를 따릅니다.
 
@@ -57,26 +61,27 @@
 4. `safety checker`
 5. `constraint checker`
 6. `trade-off checker`
-7. `reviser / formatter`
+7. `final integrator / formatter`
 
 이 구조를 통해 다음 비교를 명확하게 만듭니다.
 
-- `B'` vs `A'`: structured prompt만으로도 개선이 있는가
-- `C'` vs `B'`: workflow가 prompt structuring을 넘어서는 추가 이득을 주는가
-- `C'` vs `D'`: `1.7B + workflow`가 `8B-AWQ` reference에 얼마나 근접하는가
-- `F` vs `E`: workflow 효과가 0.6B에서도 유지되는가
+- `A` vs `B`: `0.6B`와 `1.7B` direct 사이의 capacity gap은 얼마나 큰가
+- `C` vs `B`: structured prompt만으로도 `1.7B` failure를 줄일 수 있는가
+- `D` vs `A/B/C`: stronger reference 대비 small-model weakness는 어디서 나타나는가
+- `E` vs `B/C/D`: `1.7B + workflow`가 small-model 한계를 얼마나 회복할 수 있는가
+- `F` vs `A`: 같은 workflow가 `0.6B`에는 도움이 되는가, 아니면 한계를 더 드러내는가
 
 ## 허점 분석 프레임
 
-기존 PlanFit의 정성 분석 틀은 유지하고, actor만 새 설정에 맞게 바꿉니다.
+현재 분석은 아래 축을 기준으로 진행합니다.
 
-| 기존 해석 축 | 새 해석 축 |
+| 현재 분석 축 | 설명 |
 | --- | --- |
-| small model 대표 실패 유형 | `0.6B / 1.7B direct` 대표 실패 유형 |
-| reviser가 잘 고친 오류 | workflow가 잘 고친 오류 |
-| reviser도 못 고친 오류 | workflow도 못 고친 오류 |
-| strong direct 안정성 | `8B-AWQ direct`가 local reference로 더 안정적인가 |
-| reasoning trace 반영 여부 | workflow trace / intermediate state가 제약을 제대로 반영하는가 |
+| small model 대표 실패 유형 | `A/B/C/D`에서 나타나는 multi-objective planning failure 분포 |
+| workflow가 줄인 오류 | `E/F workflow`가 줄인 오류 |
+| workflow 이후에도 남는 오류 | workflow 이후에도 남거나 더 악화되는 오류 |
+| strong direct 안정성 | `D` (`14B-AWQ direct`)가 local reference로 얼마나 안정적인가 |
+| workflow trace 반영 여부 | `E/F`의 intermediate state가 제약을 제대로 반영하는가 |
 
 권장 failure tagging은 아래와 같습니다.
 
@@ -112,29 +117,27 @@
 ### Pilot
 
 - Personas: `P1`, `P7`, `P8`
-- Conditions: `A'`, `B'`, `C'`, `D'`, `E`, `F`
+- Conditions: `A`, `B`, `C`, `D`, `E`, `F`
 - Total outputs: `3 personas x 6 conditions = 18 outputs`
 
 ### Main experiment
 
-- Main result block: `10 personas x A'/B'/C'/D' = 40 outputs`
-- Extended ablation: pilot에서 `0.6B workflow`가 의미 있으면 `E/F`를 추가해 `+20 outputs`
-- Full total with ablation: `60 outputs`
+- Full result block: `10 personas x A/B/C/D/E/F = 60 outputs`
 
-보고서 본문은 `A'/B'/C'/D'` 중심으로, `0.6B`는 appendix 또는 ablation section으로 두는 구성을 기본으로 합니다.
+보고서 본문도 `A/B/C/D/E/F` 전체 비교를 기준으로 구성하되, `A-D`에서 baseline weakness를 먼저 보여주고 `E/F`에서 workflow effect의 model-dependence를 해석하는 방향으로 잡습니다.
 
 ## 현재 코드베이스와의 매핑
 
-현재 레포의 구현은 아직 legacy 구조를 따릅니다.
+현재 레포의 실행 라벨은 아직 legacy 상태라서, README label과 code condition은 아래처럼 대응합니다.
 
-| Current code | Current meaning | Planned direction |
+| README label | Experiment meaning | Current code condition |
 | --- | --- | --- |
-| `A` | small direct planner | `A'`로 유지하되 small model을 `1.7B`로 교체 |
-| `B` | small structured planner | `B'`로 유지하되 model을 `1.7B`로 교체 |
-| `C` | small LangGraph workflow planner | `C'` 구현 완료 |
-| `D` | strong direct planner | `D'` local stronger reference |
-| `E` | tiny direct planner | `0.6B` ablation baseline |
-| `F` | tiny LangGraph workflow planner | `0.6B` workflow ablation |
+| `A` | `0.6B` direct planner | `E` |
+| `B` | `1.7B` direct planner | `A` |
+| `C` | `1.7B` structured planner | `B` |
+| `D` | `14B-AWQ` direct planner | `D` |
+| `E` | `1.7B` LangGraph workflow planner | `C` |
+| `F` | `0.6B` LangGraph workflow planner | `F` |
 
 현재 `configs/models.yaml` 기본값은 아래처럼 되어 있습니다.
 
@@ -161,7 +164,8 @@ pip install -r requirements.txt
 
 ## 현재 기준 실행 명령
 
-코드 리팩터링 전까지는 기존 엔트리포인트를 그대로 사용합니다.
+코드 리팩터링 전까지는 기존 엔트리포인트를 그대로 사용합니다.  
+아래 스크립트 이름은 **README label이 아니라 current code condition 기준**입니다.
 
 ```bash
 conda activate nlp
@@ -226,9 +230,9 @@ python src/evaluate_llm_judge.py \
 
 ## 메인 메시지
 
-이 프로젝트의 최종 메시지는 "0.6B나 1.7B가 곧바로 8B급이다"가 아닙니다.  
+이 프로젝트의 최종 메시지는 "workflow를 주면 작은 모델이 다 강해진다"가 아닙니다.  
 더 안전한 주장은 아래와 같습니다.
 
-> workflow가 on-device small model의 failure mode를 얼마나 줄이고, task-specific planning rubric에서 local `8B-AWQ` reference와의 gap을 얼마나 회복하는가
+> multi-objective planning은 소형 LLM에서 특히 취약하며, structured prompting과 workflow의 효과도 모델 capacity에 강하게 의존한다
 
-이 framing을 유지하면, 이번 프로젝트는 단순한 multi-agent 적용 사례가 아니라 **온디바이스 환경에서 시스템 설계가 model-size gap을 얼마나 메울 수 있는지**를 묻는 연구로 정리할 수 있습니다.
+이 framing을 유지하면, 이번 프로젝트는 단순한 multi-agent 적용 사례가 아니라 **small-model limitation을 드러낸 뒤, 시스템 설계가 그 한계를 어디까지 보완할 수 있고 어디서는 실패하는지**를 묻는 연구로 정리할 수 있습니다.
