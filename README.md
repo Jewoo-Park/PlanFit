@@ -1,6 +1,6 @@
 # PlanFit
 
-
+![PlanFit Framework](./assets/Figure1.png)
 
 `PlanFit` is an experimental repository focused on **4-week personalized hybrid training plan generation**, aiming to **expose the limitations of small LLMs in multi-objective planning tasks** and evaluate how much structured prompting and workflow design can mitigate those limitations.
 
