@@ -165,9 +165,10 @@ bash scripts/run_condition_g.sh
 bash scripts/run_condition_h.sh
 bash scripts/run_condition_i.sh
 bash scripts/run_condition_j.sh
+```
 
 Run all:
-
+```bash
 bash scripts/run_all.sh
 Evaluation
 python src/evaluate_llm_judge.py \
@@ -188,6 +189,7 @@ Input Format
   "preferences": "...",
   "dislikes": "..."
 }
+```
 Main Message
 
 Multi-objective planning is particularly weak in small LLMs, and the effectiveness of structured prompting and workflow design is strongly dependent on model capacity.
