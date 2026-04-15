@@ -113,6 +113,7 @@ def run_workflow_condition(
         generator=generator,
         prompts_cfg=prompts_cfg,
         gen_cfg=default_gen,
+        workflow_cfg=cond_cfg.get("workflow"),
     )
     workflow_prompt_files = {
         prompt_key: prompts_cfg["prompt_files"][prompt_key]
@@ -133,6 +134,7 @@ def run_workflow_condition(
                 "checker_fail_count": workflow_result["checker_fail_count"],
                 "revision_loops": workflow_result["revision_loops"],
                 "caught_by_node": workflow_result["caught_by_node"],
+                "remaining_fail_nodes": workflow_result.get("remaining_fail_nodes", []),
                 "profile_summary": workflow_result["profile_summary"],
                 "goal_strategy": workflow_result["goal_strategy"],
                 "safety_review": workflow_result["safety_review"],

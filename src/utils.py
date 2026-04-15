@@ -3,6 +3,7 @@ import inspect
 import json
 import os
 import random
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -64,6 +65,15 @@ def ensure_dir(path_str: str) -> Path:
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+_THINK_BLOCK_RE = re.compile(r"(?is)^\s*(?:<think>.*?</think>\s*)+")
+
+
+def strip_think_blocks(text: str) -> str:
+    cleaned = _THINK_BLOCK_RE.sub("", text or "")
+    cleaned = cleaned.replace("<think>", "").replace("</think>", "")
+    return cleaned.strip()
 
 
 def library_versions() -> Dict[str, str]:
