@@ -8,12 +8,12 @@ default:
 conditions:
   A:
     model_alias: "small"
-    prompt_key: "A"
+    prompt_key: "direct"
     runner: "direct"
     system_type: "direct_planner"
   B:
     model_alias: "small"
-    prompt_key: "B"
+    prompt_key: "structured"
     runner: "direct"
     system_type: "structured_planner"
   C:
@@ -22,12 +22,12 @@ conditions:
     system_type: "langgraph_workflow_planner"
   D:
     model_alias: "strong"
-    prompt_key: "D"
+    prompt_key: "direct"
     runner: "direct"
     system_type: "direct_planner"
   E:
     model_alias: "tiny"
-    prompt_key: "A"
+    prompt_key: "direct"
     runner: "direct"
     system_type: "direct_planner"
   F:

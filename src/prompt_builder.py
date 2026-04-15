@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from utils import persona_prompt_view, read_text
 
@@ -27,11 +27,9 @@ def build_prompt(
     condition: str,
     persona: Dict[str, Any],
     prompts_cfg: Dict[str, Any],
-    small_model_output: Optional[str] = None,
 ) -> str:
     return build_prompt_from_key(
         condition,
         prompts_cfg,
         persona=persona,
-        small_model_output=small_model_output or "",
     )

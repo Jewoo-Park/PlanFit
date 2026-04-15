@@ -29,7 +29,6 @@ README에서는 `A/B/C/D/E/F`를 아래 순서로 사용합니다.
 - Task: 4주 personalized hybrid training plan generation
 - Core rubric: `Constraint`, `Safety`, `Goal alignment`, `Trade-off`, `Coherence`
 - Output schema: `Week / Day / Focus / Session / Duration / Intensity / Reason`
-- Pilot personas: `P1 Junsu`, `P7 Soyeon`, `P8 Minseo`
 - Evaluation protocol: blind human scoring + quantitative/qualitative analysis 분리
 
 즉, rubric은 유지하고 model/system condition만 바꾸는 방향으로 갑니다.
@@ -51,7 +50,7 @@ README에서는 `A/B/C/D/E/F`를 아래 순서로 사용합니다.
 
 ## Workflow 정의
 
-`E/F`의 핵심은 "멀티에이전트를 그냥 써본다"가 아니라, **같은 모델을 유지한 채 시스템 설계만 바꾸었을 때 어떤 모델에서는 개선이 가능하고 어떤 모델에서는 한계가 더 분명해지는지**를 보는 것입니다.
+`E/F`의 핵심은 **같은 모델을 유지한 채 시스템 설계만 바꾸었을 때 어떤 모델에서는 개선이 가능하고 어떤 모델에서는 한계가 더 분명해지는지**를 보는 것입니다.
 
 권장 workflow는 아래 순서를 따릅니다.
 
@@ -95,32 +94,39 @@ README에서는 `A/B/C/D/E/F`를 아래 순서로 사용합니다.
 
 `caught_by_node`는 `extractor / safety checker / constraint checker / trade-off checker / not caught`처럼 기록합니다.
 
-## 평가 시트에 추가할 메타데이터
+## 추가 연구용 메타데이터
 
-기존 점수 체계는 유지하되, workflow 해석을 위해 아래 필드를 함께 저장합니다.
+현재 `results.jsonl`의 `metadata`에는 아래 필드가 저장됩니다.
 
-- `model_family`
+공통 저장 필드:
+
+- `prompt_version`
+- `temperature`
+- `top_p`
+- `max_tokens`
+- `seed`
+- `generated_at`
+- `prompt_files`
 - `system_type`
+
+Workflow 조건(`E`, `F`)에서 추가 저장되는 필드:
+
 - `model_calls`
-- `total_tokens`
-- `latency`
 - `checker_fail_count`
 - `revision_loops`
 - `caught_by_node`
-- `major_failure_mode`
-- `fixed_by_workflow`
+- `remaining_fail_nodes`
+- `workflow_nodes`
+- `workflow_trace`
+- `profile_summary`
+- `goal_strategy`
+- `safety_review`
+- `constraint_review`
+- `tradeoff_review`
 
-즉, 품질 점수만이 아니라 과정 비용까지 같이 비교합니다.
 
-## 파일럿과 본실험
 
-### Pilot
-
-- Personas: `P1`, `P7`, `P8`
-- Conditions: `A`, `B`, `C`, `D`, `E`, `F`
-- Total outputs: `3 personas x 6 conditions = 18 outputs`
-
-### Main experiment
+### Experiment
 
 - Full result block: `10 personas x A/B/C/D/E/F = 60 outputs`
 
@@ -230,9 +236,6 @@ python src/evaluate_llm_judge.py \
 
 ## 메인 메시지
 
-이 프로젝트의 최종 메시지는 "workflow를 주면 작은 모델이 다 강해진다"가 아닙니다.  
-더 안전한 주장은 아래와 같습니다.
+> multi-objective planning은 소형 LLM에서 특히 취약하며, structured prompting과 workflow의 효과도 모델 capacity에 강하게 의존한다.
 
-> multi-objective planning은 소형 LLM에서 특히 취약하며, structured prompting과 workflow의 효과도 모델 capacity에 강하게 의존한다
-
-이 framing을 유지하면, 이번 프로젝트는 단순한 multi-agent 적용 사례가 아니라 **small-model limitation을 드러낸 뒤, 시스템 설계가 그 한계를 어디까지 보완할 수 있고 어디서는 실패하는지**를 묻는 연구로 정리할 수 있습니다.
+**small-model limitation을 드러낸 뒤, 시스템 설계가 그 한계를 어디까지 보완할 수 있고 어디서는 실패하는지 알 수 있다**
