@@ -10,3 +10,5 @@ data/processed/*.jsonl
 data/splits/*.jsonl
 
 /aaaa/
+/backup/
+/outputs/

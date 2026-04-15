@@ -1,6 +1,7 @@
 prompt_files:
   A: "prompts/condition_a_direct.txt"
-  B: "prompts/condition_b_structured.txt"
+  B: "prompts/condition_b_structured_workflow.txt"
+  B_before: "prompts/condition_b_structured.txt"
   D: "prompts/condition_d_direct_strong.txt"
   workflow_profile_extractor: "prompts/workflow_profile_extractor.txt"
   workflow_goal_prioritizer: "prompts/workflow_goal_prioritizer.txt"
