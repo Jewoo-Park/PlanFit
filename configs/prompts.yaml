@@ -7,4 +7,5 @@ prompt_files:
   workflow_safety_checker: "prompts/workflow_safety_checker.txt"
   workflow_constraint_checker: "prompts/workflow_constraint_checker.txt"
   workflow_tradeoff_checker: "prompts/workflow_tradeoff_checker.txt"
+  workflow_repair_planner: "prompts/workflow_repair_planner.txt"
   workflow_reviser_formatter: "prompts/workflow_reviser_formatter.txt"

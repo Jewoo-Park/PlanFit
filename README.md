@@ -16,6 +16,8 @@
 - `F`: `Qwen3-0.6B` workflow
 - `G`: `Qwen3-0.6B` structured ablation
 - `H`: `Qwen3-14B-AWQ` structured ablation
+- `I`: `Qwen3-1.7B` refined workflow
+- `J`: `Qwen3-0.6B` refined workflow
 
 ## Research Questions
 
@@ -52,6 +54,17 @@
 | `H` | `Qwen3-14B-AWQ` | Structured planner | strong-model structured ablation |
 
 즉 메인 읽기 순서는 `A -> B -> C -> D -> E -> F`로 유지하고, `G/H`는 capacity 양 끝단에서 `direct` 대비 `structured` prompting 효과를 확인하는 ablation block으로 해석합니다.
+
+## 과제 외 추가 실험
+
+`I/J`는 과제 본문 비교축과 분리된 추가 실험으로 두고, workflow tuning 과정에서 최종적으로 남긴 refined workflow 설정을 사용합니다.
+
+| Condition | Model | System | Purpose |
+| --- | --- | --- | --- |
+| `I` | `Qwen3-1.7B` | LangGraph refined workflow planner | `1.7B`에서 refined workflow 설정의 효과 확인 |
+| `J` | `Qwen3-0.6B` | LangGraph refined workflow planner | `0.6B`에서 refined workflow 설정의 효과 확인 |
+
+`I/J`는 version sweep 비교가 아니라, refined workflow를 고정한 독립 실행 조건으로 해석합니다.
 
 ## Workflow 정의
 
@@ -106,15 +119,18 @@ Workflow 조건(`E`, `F`)에서 추가 저장되는 필드:
 - `constraint_review`
 - `tradeoff_review`
 
+Refined workflow 조건(`I`, `J`)도 동일한 workflow 메타데이터 필드를 저장합니다.
+
 
 
 ### Experiment
 
 - Main result block: `10 personas x A/B/C/D/E/F = 60 outputs`
 - Structured ablation block: `10 personas x G/H = 20 outputs`
-- Full result block with ablations: `80 outputs`
+- Additional refined workflow block: `10 personas x I/J = 20 outputs`
+- Full result block with ablations and extra experiments: `100 outputs`
 
-보고서 본문은 `model size`, `prompting strategy` (`direct` vs. `structured`), 그리고 `workflow-based system design`의 효과를 함께 읽을 수 있도록 `A/B/C/D/E/F` main comparison을 기준으로 구성하고, `G/H`는 structured prompting의 capacity-boundary ablation으로 별도 해석하는 방향으로 잡습니다.
+보고서 본문은 `model size`, `prompting strategy` (`direct` vs. `structured`), 그리고 `workflow-based system design`의 효과를 함께 읽을 수 있도록 `A/B/C/D/E/F` main comparison을 기준으로 구성하고, `G/H`는 structured prompting의 capacity-boundary ablation으로, `I/J`는 과제 외 추가 실험으로 별도 해석하는 방향으로 잡습니다.
 
 `configs/models.yaml`의 기본값은 아래와 같습니다.
 
@@ -141,7 +157,7 @@ pip install -r requirements.txt
 
 ## 실행 명령
 
-아래 스크립트 이름은 README의 `A/B/C/D/E/F/G/H` condition label과 동일합니다.
+아래 스크립트 이름은 README의 `A/B/C/D/E/F/G/H/I/J` condition label과 동일합니다.
 
 ```bash
 conda activate nlp
@@ -154,6 +170,8 @@ bash scripts/run_condition_e.sh
 bash scripts/run_condition_f.sh
 bash scripts/run_condition_g.sh
 bash scripts/run_condition_h.sh
+bash scripts/run_condition_i.sh
+bash scripts/run_condition_j.sh
 ```
 
 전체 실행:
@@ -163,7 +181,7 @@ conda activate nlp
 bash scripts/run_all.sh
 ```
 
-`run_all.sh`는 main comparison block인 `A-F`만 실행합니다. `G/H` structured ablation은 필요할 때 개별 실행합니다.
+`run_all.sh`는 main comparison block인 `A-F`만 실행합니다. `G/H` structured ablation과 `I/J` 추가 실험은 필요할 때 개별 실행합니다.
 
 ## 평가 명령
 

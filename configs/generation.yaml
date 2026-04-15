@@ -44,3 +44,45 @@ conditions:
     prompt_key: "structured"
     runner: "direct"
     system_type: "structured_planner"
+  I:
+    workflow_model_alias: "small"
+    runner: "workflow"
+    system_type: "langgraph_refined_workflow_planner"
+    workflow: &workflow_refined_stable
+      max_revision_loops: 0
+      strip_think_blocks: true
+      use_full_persona_context: true
+      node_generation_overrides:
+        profile_extractor:
+          temperature: 0.0
+          top_p: 1.0
+          max_tokens: 512
+        goal_prioritizer:
+          temperature: 0.0
+          top_p: 1.0
+          max_tokens: 512
+        draft_planner:
+          temperature: 0.2
+          top_p: 0.9
+          max_tokens: 3072
+        safety_checker:
+          temperature: 0.0
+          top_p: 1.0
+          max_tokens: 512
+        constraint_checker:
+          temperature: 0.0
+          top_p: 1.0
+          max_tokens: 512
+        tradeoff_checker:
+          temperature: 0.0
+          top_p: 1.0
+          max_tokens: 512
+        reviser_formatter:
+          temperature: 0.0
+          top_p: 1.0
+          max_tokens: 3072
+  J:
+    workflow_model_alias: "tiny"
+    runner: "workflow"
+    system_type: "langgraph_refined_workflow_planner"
+    workflow: *workflow_refined_stable

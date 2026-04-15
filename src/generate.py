@@ -27,6 +27,8 @@ CONDITION_OUTPUT_DEFAULTS = {
     "F": "outputs/condition_f",
     "G": "outputs/condition_g",
     "H": "outputs/condition_h",
+    "I": "outputs/condition_i",
+    "J": "outputs/condition_j",
 }
 
 
@@ -161,8 +163,8 @@ def run_workflow_condition(
 
 
 def main(argv: Optional[List[str]] = None) -> None:
-    parser = argparse.ArgumentParser(description="Generate training plans for conditions A–H.")
-    parser.add_argument("--condition", choices=["A", "B", "C", "D", "E", "F", "G", "H"], required=True)
+    parser = argparse.ArgumentParser(description="Generate training plans for conditions A–J.")
+    parser.add_argument("--condition", choices=["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"], required=True)
     parser.add_argument("--input", default="data/processed/personas_normalized.jsonl")
     parser.add_argument("--models-config", default="configs/models.yaml")
     parser.add_argument("--prompts-config", default="configs/prompts.yaml")
