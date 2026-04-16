@@ -15,7 +15,7 @@ from utils import (
     set_seed,
     utc_now_iso,
 )
-from workflow import LangGraphWorkflowRunner
+from workflow import DynamicMultiAgentWorkflowRunner, LangGraphWorkflowRunner
 
 
 CONDITION_OUTPUT_DEFAULTS = {
@@ -29,6 +29,8 @@ CONDITION_OUTPUT_DEFAULTS = {
     "H": "outputs/condition_h",
     "I": "outputs/condition_i",
     "J": "outputs/condition_j",
+    "K": "outputs/condition_k",
+    "L": "outputs/condition_l",
 }
 
 
@@ -112,13 +114,22 @@ def run_workflow_condition(
     model_cfg = _model_cfg(models_data, alias)
     generator = build_generator(model_cfg)
     meta_base = _metadata_base(default_gen, generated_at)
+    runner_type = cond_cfg.get("runner", "workflow")
 
-    workflow_runner = LangGraphWorkflowRunner(
-        generator=generator,
-        prompts_cfg=prompts_cfg,
-        gen_cfg=default_gen,
-        workflow_cfg=cond_cfg.get("workflow"),
-    )
+    if runner_type == "dynamic_workflow":
+        workflow_runner = DynamicMultiAgentWorkflowRunner(
+            generator=generator,
+            prompts_cfg=prompts_cfg,
+            gen_cfg=default_gen,
+            workflow_cfg=cond_cfg.get("workflow"),
+        )
+    else:
+        workflow_runner = LangGraphWorkflowRunner(
+            generator=generator,
+            prompts_cfg=prompts_cfg,
+            gen_cfg=default_gen,
+            workflow_cfg=cond_cfg.get("workflow"),
+        )
     workflow_prompt_files = {
         prompt_key: prompts_cfg["prompt_files"][prompt_key]
         for prompt_key in workflow_runner.prompt_keys.values()
@@ -146,6 +157,14 @@ def run_workflow_condition(
                 "tradeoff_review": workflow_result["tradeoff_review"],
             }
         )
+        if "initial_fail_nodes" in workflow_result:
+            metadata_extra["initial_fail_nodes"] = workflow_result["initial_fail_nodes"]
+        if "routing_trace" in workflow_result:
+            metadata_extra["routing_trace"] = workflow_result["routing_trace"]
+        if "fixer_calls" in workflow_result:
+            metadata_extra["fixer_calls"] = workflow_result["fixer_calls"]
+        if "fixers_triggered" in workflow_result:
+            metadata_extra["fixers_triggered"] = workflow_result["fixers_triggered"]
         records.append(
             build_output_record(
                 persona=persona,
@@ -154,7 +173,7 @@ def run_workflow_condition(
                 model_path_or_name=str(model_cfg["path_or_name"]),
                 solution_raw_text=workflow_result["final_plan"],
                 metadata=meta_base,
-                original_plan=workflow_result["draft_plan"],
+                original_plan=workflow_result.get("initial_draft_plan", workflow_result["draft_plan"]),
                 revised_plan=workflow_result["final_plan"],
                 metadata_extra=metadata_extra,
             )
@@ -163,8 +182,12 @@ def run_workflow_condition(
 
 
 def main(argv: Optional[List[str]] = None) -> None:
-    parser = argparse.ArgumentParser(description="Generate training plans for conditions A–J.")
-    parser.add_argument("--condition", choices=["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"], required=True)
+    parser = argparse.ArgumentParser(description="Generate training plans for conditions A–L.")
+    parser.add_argument(
+        "--condition",
+        choices=["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"],
+        required=True,
+    )
     parser.add_argument("--input", default="data/processed/personas_normalized.jsonl")
     parser.add_argument("--models-config", default="configs/models.yaml")
     parser.add_argument("--prompts-config", default="configs/prompts.yaml")
@@ -201,7 +224,7 @@ def main(argv: Optional[List[str]] = None) -> None:
     )
 
     runner_type = generation_cfg["conditions"][args.condition].get("runner", "direct")
-    if runner_type == "workflow":
+    if runner_type in {"workflow", "dynamic_workflow"}:
         records = run_workflow_condition(
             args.condition,
             personas,

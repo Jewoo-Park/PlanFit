@@ -86,3 +86,58 @@ conditions:
     runner: "workflow"
     system_type: "langgraph_refined_workflow_planner"
     workflow: *workflow_refined_stable
+  K:
+    workflow_model_alias: "small"
+    runner: "dynamic_workflow"
+    system_type: "dynamic_multi_agent_planner"
+    workflow: &workflow_dynamic_multi_agent
+      max_revision_loops: 1
+      strip_think_blocks: true
+      use_full_persona_context: true
+      use_final_formatter: false
+      node_generation_overrides:
+        profile_extractor:
+          temperature: 0.0
+          top_p: 1.0
+          max_tokens: 512
+        goal_prioritizer:
+          temperature: 0.0
+          top_p: 1.0
+          max_tokens: 512
+        draft_planner:
+          temperature: 0.2
+          top_p: 0.9
+          max_tokens: 2048
+        safety_checker:
+          temperature: 0.0
+          top_p: 1.0
+          max_tokens: 384
+        constraint_checker:
+          temperature: 0.0
+          top_p: 1.0
+          max_tokens: 384
+        tradeoff_checker:
+          temperature: 0.0
+          top_p: 1.0
+          max_tokens: 384
+        safety_fixer:
+          temperature: 0.0
+          top_p: 1.0
+          max_tokens: 2048
+        constraint_fixer:
+          temperature: 0.0
+          top_p: 1.0
+          max_tokens: 2048
+        tradeoff_fixer:
+          temperature: 0.0
+          top_p: 1.0
+          max_tokens: 2048
+        dynamic_formatter:
+          temperature: 0.0
+          top_p: 1.0
+          max_tokens: 2048
+  L:
+    workflow_model_alias: "tiny"
+    runner: "dynamic_workflow"
+    system_type: "dynamic_multi_agent_planner"
+    workflow: *workflow_dynamic_multi_agent

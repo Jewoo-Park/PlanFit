@@ -24,6 +24,8 @@ This README and the actual execution labels follow the same condition ordering:
 ----- extra work -----
 - `I`: `Qwen3-1.7B` refined workflow  
 - `J`: `Qwen3-0.6B` refined workflow  
+- `K`: `Qwen3-1.7B` dynamic multi-agent workflow
+- `L`: `Qwen3-0.6B` dynamic multi-agent workflow
 
 ---
 
@@ -31,6 +33,7 @@ This README and the actual execution labels follow the same condition ordering:
 
 1. In multi-objective tasks such as personalized hybrid training plan generation, how does planning performance vary depending on **model size** and **prompting strategy** (`direct` vs. `structured`)?
 2. Can **workflow-based system design** improve planning performance? In particular, is the effect more pronounced in compact models?
+3. Can a **dynamic multi-agent workflow** that routes only failure-specific revisions outperform a fixed workflow, especially for compact models?
 
 ---
 
@@ -77,12 +80,20 @@ Main reading order:
 | --- | --- | --- | --- |
 | `I` | `Qwen3-1.7B` | LangGraph refined workflow planner | Effect of refined workflow on 1.7B |
 | `J` | `Qwen3-0.6B` | LangGraph refined workflow planner | Effect of refined workflow on 0.6B |
+| `K` | `Qwen3-1.7B` | Dynamic multi-agent workflow planner | Dynamic routing effect on 1.7B |
+| `L` | `Qwen3-0.6B` | Dynamic multi-agent workflow planner | Dynamic routing effect on 0.6B |
 
 Key refinements in `I/J`:
 
 - Strips leaked `<think>` blocks from node outputs before storing final artifacts.
 - Passes the full persona context to each workflow node instead of relying only on partial state.
 - Uses node-specific generation settings, with deterministic checkers and reviser stages for more stable verification and formatting.
+
+Key characteristics of `K/L`:
+
+- Uses the same front-end planning stages, then routes failures dynamically instead of relying on a single reviser to absorb all revisions at once.
+- Activates only the relevant fixer agents (`safety`, `constraint`, `trade-off`) when the corresponding checker fails.
+- Tracks routing decisions and triggered fixers for later analysis.
 
 ---
 
@@ -98,6 +109,17 @@ Recommended workflow:
 6. `trade-off checker`  
 7. `final integrator / formatter`  
 
+Dynamic multi-agent variant (`K/L`):
+
+1. `profile extractor`
+2. `goal prioritizer`
+3. `draft planner`
+4. `metric checkers`
+5. `router`
+6. `failure-specific fixer agents`
+7. `re-check`
+8. `final plan`
+
 ---
 
 ## Key Comparisons
@@ -106,6 +128,8 @@ Recommended workflow:
 - `A` vs `G`, `B` vs `C`, `D` vs `H`: Structured vs direct prompting  
 - `E` vs `B/C`: Workflow effect on 1.7B  
 - `F` vs `A/G`: Workflow effect on 0.6B  
+- `I` vs `K`: Refined fixed workflow vs dynamic multi-agent on 1.7B
+- `J` vs `L`: Refined fixed workflow vs dynamic multi-agent on 0.6B
 - `D/H` vs others: Gap between strong and compact models  
 
 ---
@@ -138,6 +162,13 @@ Workflow-specific fields:
 - `constraint_review`
 - `tradeoff_review`
 
+Dynamic multi-agent specific fields (`K/L`):
+
+- `initial_fail_nodes`
+- `routing_trace`
+- `fixer_calls`
+- `fixers_triggered`
+
 ---
 
 ## Experiment Scale
@@ -145,7 +176,8 @@ Workflow-specific fields:
 - Main: `10 personas × A–F = 60`
 - Ablation: `10 personas × G/H = 20`
 - Refined: `10 personas × I/J = 20`
-- Total: `100 outputs`
+- Dynamic multi-agent: `10 personas × K/L = 20`
+- Total: `120 outputs`
 
 ---
 
@@ -161,8 +193,11 @@ Workflow-specific fields:
 
 ```bash
 pip install -r requirements.txt
-Run
+
+# Prepare personas
 python src/load_personas.py
+
+# Run each condition
 bash scripts/run_condition_a.sh
 bash scripts/run_condition_b.sh
 bash scripts/run_condition_c.sh
@@ -173,18 +208,28 @@ bash scripts/run_condition_g.sh
 bash scripts/run_condition_h.sh
 bash scripts/run_condition_i.sh
 bash scripts/run_condition_j.sh
+bash scripts/run_condition_k.sh
+bash scripts/run_condition_l.sh
 ```
 
-Run all:
+Run all main conditions (`A–F`):
 ```bash
 bash scripts/run_all.sh
-Evaluation
+```
+
+Evaluation:
+```bash
 python src/evaluate_llm_judge.py \
   --outputs outputs/condition_a/results.jsonl \
   --personas data/processed/personas_normalized.jsonl
-LLM judge only
-Score: 1–10
-Input Format
+```
+
+LLM judge only:
+
+- Score: `1–10`
+- Input format:
+
+```json
 {
   "id": "P1",
   "name": "Junsu",
@@ -208,3 +253,5 @@ Input Format
 Multi-objective planning is particularly weak in small LLMs, and the effectiveness of structured prompting and workflow design is strongly dependent on model capacity.
 
 The study first exposes planning differences across model size and prompting strategy, and then evaluates how much workflow-based system design can compensate for these limitations, especially in compact models.
+
+The additional `K/L` experiments further test whether a dynamic multi-agent routing strategy can outperform a fixed workflow by assigning only failure-specific revisions to specialized agents.

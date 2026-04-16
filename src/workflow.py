@@ -27,6 +27,18 @@ CHECKER_FIELDS = {
     "tradeoff_checker": "tradeoff_review",
 }
 CHECKER_NODE_SPECS = [spec for spec in BASE_WORKFLOW_NODE_SPECS if spec[0] in CHECKER_FIELDS]
+INITIAL_WORKFLOW_NODE_SPECS = [spec for spec in BASE_WORKFLOW_NODE_SPECS if spec[0] not in CHECKER_FIELDS]
+DYNAMIC_FIXER_NODE_SPECS = [
+    ("safety_fixer", "workflow_safety_fixer", "draft_plan"),
+    ("constraint_fixer", "workflow_constraint_fixer", "draft_plan"),
+    ("tradeoff_fixer", "workflow_tradeoff_fixer", "draft_plan"),
+]
+DYNAMIC_FIXER_BY_CHECKER = {
+    "safety_checker": DYNAMIC_FIXER_NODE_SPECS[0],
+    "constraint_checker": DYNAMIC_FIXER_NODE_SPECS[1],
+    "tradeoff_checker": DYNAMIC_FIXER_NODE_SPECS[2],
+}
+DYNAMIC_FINAL_NODE_SPEC = ("dynamic_formatter", "workflow_dynamic_formatter", "final_plan")
 
 
 class WorkflowState(TypedDict, total=False):
@@ -66,6 +78,10 @@ def _build_prompt(
         constraint_review=state.get("constraint_review", ""),
         tradeoff_review=state.get("tradeoff_review", ""),
     )
+
+
+def _status_is_pass(review_text: str) -> bool:
+    return "STATUS: PASS" in (review_text or "").upper()
 
 
 class LangGraphWorkflowRunner:
@@ -175,7 +191,7 @@ class LangGraphWorkflowRunner:
     def _current_checker_failures(self, state: WorkflowState) -> List[str]:
         failures: List[str] = []
         for node_name, field_name in CHECKER_FIELDS.items():
-            if "STATUS: PASS" not in state.get(field_name, "").upper():
+            if not _status_is_pass(state.get(field_name, "")):
                 failures.append(node_name)
         return failures
 
@@ -239,3 +255,138 @@ class LangGraphWorkflowRunner:
         if not self.configured_mode:
             return self._run_legacy(persona)
         return self._run_configured(persona)
+
+
+class DynamicMultiAgentWorkflowRunner:
+    def __init__(
+        self,
+        *,
+        generator: Any,
+        prompts_cfg: Dict[str, Any],
+        gen_cfg: Dict[str, Any],
+        workflow_cfg: Dict[str, Any] | None = None,
+    ) -> None:
+        self.generator = generator
+        self.prompts_cfg = prompts_cfg
+        self.gen_cfg = dict(gen_cfg)
+        self.workflow_cfg = dict(workflow_cfg or {})
+        self.max_revision_loops = max(0, int(self.workflow_cfg.get("max_revision_loops", 2)))
+        self.strip_think = bool(self.workflow_cfg.get("strip_think_blocks", False))
+        self.use_full_persona_context = bool(self.workflow_cfg.get("use_full_persona_context", False))
+        self.use_final_formatter = bool(self.workflow_cfg.get("use_final_formatter", False))
+        self.node_generation_overrides = {
+            str(node_name): dict(overrides or {})
+            for node_name, overrides in (self.workflow_cfg.get("node_generation_overrides") or {}).items()
+        }
+        node_specs = INITIAL_WORKFLOW_NODE_SPECS + CHECKER_NODE_SPECS + DYNAMIC_FIXER_NODE_SPECS
+        if self.use_final_formatter:
+            node_specs = node_specs + [DYNAMIC_FINAL_NODE_SPEC]
+        self.node_order = [spec[0] for spec in node_specs]
+        self.prompt_keys = {node_name: prompt_key for node_name, prompt_key, _ in node_specs}
+
+    def _persona_prompt_value(self, persona: Dict[str, Any]) -> Any:
+        if not self.use_full_persona_context:
+            return persona
+        return json.dumps(persona, ensure_ascii=False, indent=2)
+
+    def _gen_cfg_for_node(self, node_name: str) -> Dict[str, Any]:
+        cfg = dict(self.gen_cfg)
+        cfg.update(self.node_generation_overrides.get(node_name, {}))
+        return cfg
+
+    def _clean_output(self, text: str) -> str:
+        if not self.strip_think:
+            return (text or "").strip()
+        return strip_think_blocks(text)
+
+    def _run_node(self, state: WorkflowState, node_name: str, prompt_key: str, output_field: str) -> str:
+        persona_value = self._persona_prompt_value(state["persona"])
+        prompt = _build_prompt(prompt_key, persona_value, state, self.prompts_cfg)
+        output_text = self.generator.generate(prompt, self._gen_cfg_for_node(node_name))
+        cleaned_output = self._clean_output(output_text)
+        state[output_field] = cleaned_output
+        state["workflow_trace"] = _append_trace(state, node_name, prompt_key, cleaned_output)
+        return cleaned_output
+
+    def _run_checkers(self, state: WorkflowState) -> Dict[str, str]:
+        reviews: Dict[str, str] = {}
+        for node_name, prompt_key, output_field in CHECKER_NODE_SPECS:
+            reviews[node_name] = self._run_node(state, node_name, prompt_key, output_field)
+        return reviews
+
+    def _current_checker_failures(self, state: WorkflowState) -> List[str]:
+        failures: List[str] = []
+        for node_name, field_name in CHECKER_FIELDS.items():
+            if not _status_is_pass(state.get(field_name, "")):
+                failures.append(node_name)
+        return failures
+
+    def run(self, persona: Dict[str, Any]) -> Dict[str, Any]:
+        state: WorkflowState = {"persona": persona, "workflow_trace": []}
+        routing_trace: List[Dict[str, Any]] = []
+        fixer_calls: List[str] = []
+
+        for node_spec in INITIAL_WORKFLOW_NODE_SPECS:
+            self._run_node(state, *node_spec)
+
+        initial_draft_plan = state.get("draft_plan", "")
+        self._run_checkers(state)
+
+        remaining_failures = self._current_checker_failures(state)
+        seen_failures = set(remaining_failures)
+        routing_trace.append(
+            {
+                "stage": "initial_check",
+                "failures": list(remaining_failures),
+            }
+        )
+
+        revision_loops = 0
+        while remaining_failures and revision_loops < self.max_revision_loops:
+            revision_loops += 1
+            active_fixers: List[str] = []
+            failures_in = list(remaining_failures)
+
+            for checker_name in failures_in:
+                fixer_node = DYNAMIC_FIXER_BY_CHECKER[checker_name]
+                active_fixers.append(fixer_node[0])
+                fixer_calls.append(fixer_node[0])
+                self._run_node(state, *fixer_node)
+
+            self._run_checkers(state)
+            remaining_failures = self._current_checker_failures(state)
+            seen_failures.update(remaining_failures)
+            routing_trace.append(
+                {
+                    "stage": f"revision_loop_{revision_loops}",
+                    "failures_in": failures_in,
+                    "fixers_called": active_fixers,
+                    "failures_out": list(remaining_failures),
+                }
+            )
+
+        if self.use_final_formatter:
+            self._run_node(state, *DYNAMIC_FINAL_NODE_SPEC)
+        else:
+            state["final_plan"] = state.get("draft_plan", "")
+
+        return {
+            "profile_summary": state.get("profile_summary", ""),
+            "goal_strategy": state.get("goal_strategy", ""),
+            "initial_draft_plan": initial_draft_plan,
+            "draft_plan": state.get("draft_plan", ""),
+            "safety_review": state.get("safety_review", ""),
+            "constraint_review": state.get("constraint_review", ""),
+            "tradeoff_review": state.get("tradeoff_review", ""),
+            "final_plan": state.get("final_plan", ""),
+            "workflow_trace": state.get("workflow_trace", []),
+            "model_calls": len(state.get("workflow_trace", [])),
+            "revision_loops": revision_loops,
+            "checker_fail_count": len(remaining_failures),
+            "caught_by_node": sorted(seen_failures) or ["not_caught"],
+            "remaining_fail_nodes": remaining_failures or ["resolved"],
+            "initial_fail_nodes": routing_trace[0]["failures"] or ["resolved"],
+            "routing_trace": routing_trace,
+            "fixer_calls": fixer_calls,
+            "fixers_triggered": sorted(set(fixer_calls)) or ["not_used"],
+        }
