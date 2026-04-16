@@ -78,6 +78,12 @@ Main reading order:
 | `I` | `Qwen3-1.7B` | LangGraph refined workflow planner | Effect of refined workflow on 1.7B |
 | `J` | `Qwen3-0.6B` | LangGraph refined workflow planner | Effect of refined workflow on 0.6B |
 
+Key refinements in `I/J`:
+
+- Strips leaked `<think>` blocks from node outputs before storing final artifacts.
+- Passes the full persona context to each workflow node instead of relying only on partial state.
+- Uses node-specific generation settings, with deterministic checkers and reviser stages for more stable verification and formatting.
+
 ---
 
 ## Workflow Definition
