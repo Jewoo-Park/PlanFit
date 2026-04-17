@@ -24,8 +24,10 @@ This README and the actual execution labels follow the same condition ordering:
 ----- extra work -----
 - `I`: `Qwen3-1.7B` refined workflow  
 - `J`: `Qwen3-0.6B` refined workflow  
-- `K`: `Qwen3-1.7B` dynamic multi-agent workflow
-- `L`: `Qwen3-0.6B` dynamic multi-agent workflow
+- `K`: `Qwen3-1.7B` localized patch workflow
+- `L`: `Qwen3-0.6B` localized patch workflow
+- `M`: `Qwen3-1.7B` dynamic multi-agent workflow
+- `N`: `Qwen3-0.6B` dynamic multi-agent workflow
 
 ---
 
@@ -33,7 +35,7 @@ This README and the actual execution labels follow the same condition ordering:
 
 1. In multi-objective tasks such as personalized hybrid training plan generation, how does planning performance vary depending on **model size** and **prompting strategy** (`direct` vs. `structured`)?
 2. Can **workflow-based system design** improve planning performance? In particular, is the effect more pronounced in compact models?
-3. Can a **dynamic multi-agent workflow** that routes only failure-specific revisions outperform a fixed workflow, especially for compact models?
+3. Can more specialized workflow variants such as **localized patch revision** or **dynamic multi-agent routing** outperform a fixed workflow, especially for compact models?
 
 ---
 
@@ -80,8 +82,10 @@ Main reading order:
 | --- | --- | --- | --- |
 | `I` | `Qwen3-1.7B` | LangGraph refined workflow planner | Effect of refined workflow on 1.7B |
 | `J` | `Qwen3-0.6B` | LangGraph refined workflow planner | Effect of refined workflow on 0.6B |
-| `K` | `Qwen3-1.7B` | Dynamic multi-agent workflow planner | Dynamic routing effect on 1.7B |
-| `L` | `Qwen3-0.6B` | Dynamic multi-agent workflow planner | Dynamic routing effect on 0.6B |
+| `K` | `Qwen3-1.7B` | Localized patch workflow planner | Localized checker-plus-patch revision on 1.7B |
+| `L` | `Qwen3-0.6B` | Localized patch workflow planner | Localized checker-plus-patch revision on 0.6B |
+| `M` | `Qwen3-1.7B` | Dynamic multi-agent workflow planner | Dynamic routing effect on 1.7B |
+| `N` | `Qwen3-0.6B` | Dynamic multi-agent workflow planner | Dynamic routing effect on 0.6B |
 
 Key refinements in `I/J`:
 
@@ -90,6 +94,12 @@ Key refinements in `I/J`:
 - Uses node-specific generation settings, with deterministic checkers and reviser stages for more stable verification and formatting.
 
 Key characteristics of `K/L`:
+
+- Replaces generic checker notes with more localized revision targets: where the issue is, why it matters, and what minimal patch is needed.
+- Uses a patch-oriented final reviser that is instructed to preserve untouched parts of the draft plan and modify only the affected parts.
+- Adds a post-revision checker pass for measuring whether the localized edits actually reduced failures.
+
+Key characteristics of `M/N`:
 
 - Uses the same front-end planning stages, then routes failures dynamically instead of relying on a single reviser to absorb all revisions at once.
 - Activates only the relevant fixer agents (`safety`, `constraint`, `trade-off`) when the corresponding checker fails.
@@ -109,7 +119,17 @@ Recommended workflow:
 6. `trade-off checker`  
 7. `final integrator / formatter`  
 
-Dynamic multi-agent variant (`K/L`):
+Localized patch variant (`K/L`):
+
+1. `profile extractor`
+2. `goal prioritizer`
+3. `draft planner`
+4. `localized metric checkers`
+5. `patch-oriented formatter`
+6. `post-check`
+7. `final plan`
+
+Dynamic multi-agent variant (`M/N`):
 
 1. `profile extractor`
 2. `goal prioritizer`
@@ -128,8 +148,10 @@ Dynamic multi-agent variant (`K/L`):
 - `A` vs `G`, `B` vs `C`, `D` vs `H`: Structured vs direct prompting  
 - `E` vs `B/C`: Workflow effect on 1.7B  
 - `F` vs `A/G`: Workflow effect on 0.6B  
-- `I` vs `K`: Refined fixed workflow vs dynamic multi-agent on 1.7B
-- `J` vs `L`: Refined fixed workflow vs dynamic multi-agent on 0.6B
+- `I` vs `K`: Refined fixed workflow vs localized patch workflow on 1.7B
+- `J` vs `L`: Refined fixed workflow vs localized patch workflow on 0.6B
+- `I` vs `M`: Refined fixed workflow vs dynamic multi-agent on 1.7B
+- `J` vs `N`: Refined fixed workflow vs dynamic multi-agent on 0.6B
 - `D/H` vs others: Gap between strong and compact models  
 
 ---
@@ -162,7 +184,11 @@ Workflow-specific fields:
 - `constraint_review`
 - `tradeoff_review`
 
-Dynamic multi-agent specific fields (`K/L`):
+Localized patch workflow specific fields (`K/L`):
+
+- `initial_fail_nodes`
+
+Dynamic multi-agent specific fields (`M/N`):
 
 - `initial_fail_nodes`
 - `routing_trace`
@@ -176,8 +202,9 @@ Dynamic multi-agent specific fields (`K/L`):
 - Main: `10 personas × A–F = 60`
 - Ablation: `10 personas × G/H = 20`
 - Refined: `10 personas × I/J = 20`
-- Dynamic multi-agent: `10 personas × K/L = 20`
-- Total: `120 outputs`
+- Localized patch: `10 personas × K/L = 20`
+- Dynamic multi-agent: `10 personas × M/N = 20`
+- Total: `140 outputs`
 
 ---
 
@@ -210,6 +237,8 @@ bash scripts/run_condition_i.sh
 bash scripts/run_condition_j.sh
 bash scripts/run_condition_k.sh
 bash scripts/run_condition_l.sh
+bash scripts/run_condition_m.sh
+bash scripts/run_condition_n.sh
 ```
 
 Run all main conditions (`A–F`):
@@ -254,4 +283,4 @@ Multi-objective planning is particularly weak in small LLMs, and the effectivene
 
 The study first exposes planning differences across model size and prompting strategy, and then evaluates how much workflow-based system design can compensate for these limitations, especially in compact models.
 
-The additional `K/L` experiments further test whether a dynamic multi-agent routing strategy can outperform a fixed workflow by assigning only failure-specific revisions to specialized agents.
+The additional `K/L` and `M/N` experiments further test whether more specialized revision workflows, including localized patching and dynamic multi-agent routing, can outperform a fixed workflow on compact models.

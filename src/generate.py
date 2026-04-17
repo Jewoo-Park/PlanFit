@@ -15,7 +15,7 @@ from utils import (
     set_seed,
     utc_now_iso,
 )
-from workflow import DynamicMultiAgentWorkflowRunner, LangGraphWorkflowRunner
+from workflow import DynamicMultiAgentWorkflowRunner, LangGraphWorkflowRunner, LocalizedPatchWorkflowRunner
 
 
 CONDITION_OUTPUT_DEFAULTS = {
@@ -31,6 +31,8 @@ CONDITION_OUTPUT_DEFAULTS = {
     "J": "outputs/condition_j",
     "K": "outputs/condition_k",
     "L": "outputs/condition_l",
+    "M": "outputs/condition_m",
+    "N": "outputs/condition_n",
 }
 
 
@@ -123,6 +125,13 @@ def run_workflow_condition(
             gen_cfg=default_gen,
             workflow_cfg=cond_cfg.get("workflow"),
         )
+    elif runner_type == "localized_workflow":
+        workflow_runner = LocalizedPatchWorkflowRunner(
+            generator=generator,
+            prompts_cfg=prompts_cfg,
+            gen_cfg=default_gen,
+            workflow_cfg=cond_cfg.get("workflow"),
+        )
     else:
         workflow_runner = LangGraphWorkflowRunner(
             generator=generator,
@@ -182,10 +191,10 @@ def run_workflow_condition(
 
 
 def main(argv: Optional[List[str]] = None) -> None:
-    parser = argparse.ArgumentParser(description="Generate training plans for conditions A–L.")
+    parser = argparse.ArgumentParser(description="Generate training plans for conditions A–N.")
     parser.add_argument(
         "--condition",
-        choices=["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"],
+        choices=["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N"],
         required=True,
     )
     parser.add_argument("--input", default="data/processed/personas_normalized.jsonl")
@@ -224,7 +233,7 @@ def main(argv: Optional[List[str]] = None) -> None:
     )
 
     runner_type = generation_cfg["conditions"][args.condition].get("runner", "direct")
-    if runner_type in {"workflow", "dynamic_workflow"}:
+    if runner_type in {"workflow", "dynamic_workflow", "localized_workflow"}:
         records = run_workflow_condition(
             args.condition,
             personas,
